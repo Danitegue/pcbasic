@@ -21,7 +21,8 @@ set PCBASIC_PATH=C:\GWBasic_Interpreter\pcbasic_brewer
 rem PYTHON_DIR is the folder in which the python.exe is located
 set PYTHON_DIR=C:\Users\pandora\Anaconda2
 rem ADDITIONAL_OPTIONS set other options that are desired to be used (for example, ADDITIONAL_OPTIONS="-f=10 --debug")
-set ADDITIONAL_OPTIONS="-f=10 --max-memory=67108864"
+rem set ADDITIONAL_OPTIONS="-f=10 --max-memory=67108864"
+set ADDITIONAL_OPTIONS="--double=True"
 
 rem ############################################################################
 rem ############################################################################
@@ -51,13 +52,13 @@ PROMPT Brewer $P$G
 
 @echo on
 rem * Run the Brewer software
-%PCBASIC_PATH%\ansipipe-launcher.exe %PYTHON_DIR%\python.exe %PCBASIC_PATH%\pcbasic.py %MAIN_FILE% --mount=C:%BREWER_PROGRAM%,D:%BREWER_BDATA% --quit=False --interface=ansi %ADDITIONAL_OPTIONS%
+%PCBASIC_PATH%\ansipipe-launcher.exe %PYTHON_DIR%\python.exe %PCBASIC_PATH%\pcbasic.py %MAIN_FILE% --mount=C:%BREWER_PROGRAM%,D:%BREWER_BDATA% --quit=False --interface=ansi -f=10 %ADDITIONAL_OPTIONS%
 
 
 
 rem * On exit, undo the changes what were done above
 PROMPT $P$G
-set BREWDIR=
-set NOBREW=
+REM set BREWDIR=
+REM set NOBREW=
 cd %CURR_DIR%
 ECHO "Have a nice day!"

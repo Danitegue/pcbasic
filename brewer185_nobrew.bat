@@ -22,12 +22,7 @@ rem PYTHON_DIR is the folder in which the python.exe is located
 set PYTHON_DIR=C:\Users\pandora\Anaconda2
 rem ADDITIONAL_OPTIONS set other options that are desired to be used (for example, ADDITIONAL_OPTIONS="-f=10 --debug")
 rem set ADDITIONAL_OPTIONS="-f=10 --max-memory=67108864"
-set ADDITIONAL_OPTIONS="--double=True"
-
-rem ############################################################################
-rem ############################################################################
-rem ############################################################################
-rem ############################################################################
+set ADDITIONAL_OPTIONS=""
 
 rem ****************************************************************************
 rem Do not change anything below this line
@@ -52,7 +47,7 @@ PROMPT Brewer $P$G
 
 @echo on
 rem * Run the Brewer software
-%PCBASIC_PATH%\ansipipe-launcher.exe %PYTHON_DIR%\python.exe %PCBASIC_PATH%\pcbasic.py %MAIN_FILE% --mount=C:%BREWER_PROGRAM%,D:%BREWER_BDATA% --quit=False --interface=ansi -f=10 %ADDITIONAL_OPTIONS%
+%PCBASIC_PATH%\ansipipe-launcher.exe %PYTHON_DIR%\python.exe %PCBASIC_PATH%\pcbasic.py %MAIN_FILE% --mount=C:%BREWER_PROGRAM%,D:%BREWER_BDATA% --quit=False --interface=ansi -f=10 -s=512 --double=True %ADDITIONAL_OPTIONS% 
 
 
 

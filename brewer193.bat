@@ -7,7 +7,11 @@ rem ****************************************************************************
 rem Use the variables in this section to configure the execution of the program
 rem ****************************************************************************
 rem Use NOBREW=1 if the brewer is not connected
-set NOBREW=1
+set NOBREW=
+
+rem Set the BREWDIR enviroment variable: where to find the main.asc respect the pcbasic mounted drives (full path)
+set BREWDIR=C:\
+
 rem BREWER_PROGRAM indicates the brewer program folder in which the main.asc file is contained
 set BREWER_PROGRAM=C:\GWBasic_Interpreter\brw#193\Program
 rem MAIN_FILE is the name of the main GW-Basic file
@@ -21,36 +25,30 @@ set PCBASIC_PATH=C:\GWBasic_Interpreter\pcbasic_brewer
 rem PYTHON_DIR is the folder in which the python.exe is located
 set PYTHON_DIR=C:\Users\pandora\Anaconda2
 rem ADDITIONAL_OPTIONS set other options that are desired to be used (for example, ADDITIONAL_OPTIONS="-f=10 --debug")
-set ADDITIONAL_OPTIONS="-f=10 --max-memory=67108864"
-
-rem ############################################################################
-rem ############################################################################
-rem ############################################################################
-rem ############################################################################
+rem set ADDITIONAL_OPTIONS="-f=10 --max-memory=67108864"
+set ADDITIONAL_OPTIONS=
 
 rem ****************************************************************************
 rem Do not change anything below this line
 rem ****************************************************************************
 
-REM set PATH=%PATH%;C:\Program Files (x86)\PC-BASIC
+rem save the current dir, to restore on exit
+set CURR_DIR=%CD%
 
-rem Set the BREWDIR environment variable to the proper directory (full path)
-set BREWDIR=C:\
-set NOBREW=%NOBREW%
+rem * Change the current path to the Brewer program directory to ensure correct operation (full path)
+cd %BREWER_PROGRAM%
 
-@echo on
 rem * Change the prompt as a reminder that the Brewer software is running
 PROMPT Brewer $P$G
-rem * Change to the Brewer directory to ensure correct operation (full path)
-set CURR_DIR=%CD%
-cd %BREWER_MAIN%
 
+@echo on
 rem * Run the Brewer software
-%PCBASIC_PATH%\ansipipe-launcher.exe %PYTHON_DIR%\python.exe %PCBASIC_PATH%\pcbasic.py %MAIN_FILE% --mount=C:%BREWER_MAIN%,D:%BREWER_BDATA% --com1=PORT:%COM_PORT% --interface=ansi %ADDITIONAL_OPTIONS%
+%PCBASIC_PATH%\ansipipe-launcher.exe %PYTHON_DIR%\python.exe %PCBASIC_PATH%\pcbasic.py %MAIN_FILE% --mount=C:%BREWER_PROGRAM%,D:%BREWER_BDATA% --com1=PORT:%COM_PORT% --shell=native --quit=False --interface=ansi -f=10 -s=256 --double=True %ADDITIONAL_OPTIONS% 
 
-rem * Undo what was done above
+
+rem * On exit, undo the changes what were done above
 PROMPT $P$G
-set BREWDIR=
-set NOBREW=
+rem set BREWDIR=
+rem set NOBREW=
 cd %CURR_DIR%
 ECHO "Have a nice day!"

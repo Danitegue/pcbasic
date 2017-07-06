@@ -8,6 +8,8 @@ rem Use the variables in this section to configure the execution of the program
 rem ****************************************************************************
 rem Use NOBREW=1 if the brewer is not connected
 set NOBREW=1
+rem Set the BREWDIR enviroment variable: where to find the main.asc respect the pcbasic mounted drives (full path)
+set BREWDIR=C:\
 rem BREWER_PROGRAM indicates the brewer program folder in which the main.asc file is contained
 set BREWER_PROGRAM=C:\GWBasic_Interpreter\brw#185\Program
 rem MAIN_FILE is the name of the main GW-Basic file
@@ -28,14 +30,6 @@ rem ****************************************************************************
 rem Do not change anything below this line
 rem ****************************************************************************
 
-REM set PATH=%PATH%;C:\Program Files (x86)\PC-BASIC
-
-rem Set the BREWDIR enviroment variable: where to find the main.asc respect the pcbasic mounted drives (full path)
-set BREWDIR=C:\
-
-rem Set the NOBREW enviroment variable: 
-set NOBREW=%NOBREW%
-
 rem save the current dir, to restore on exit
 set CURR_DIR=%CD%
 
@@ -47,7 +41,7 @@ PROMPT Brewer $P$G
 
 @echo on
 rem * Run the Brewer software
-%PCBASIC_PATH%\ansipipe-launcher.exe %PYTHON_DIR%\python.exe %PCBASIC_PATH%\pcbasic.py %MAIN_FILE% --mount=C:%BREWER_PROGRAM%,D:%BREWER_BDATA% --quit=False --interface=ansi -f=10 -s=512 --double=True %ADDITIONAL_OPTIONS% 
+%PCBASIC_PATH%\ansipipe-launcher.exe %PYTHON_DIR%\python.exe %PCBASIC_PATH%\pcbasic.py %MAIN_FILE% --mount=C:%BREWER_PROGRAM%,D:%BREWER_BDATA% --quit=False --interface=ansi -f=10 -s=256 --double=True %ADDITIONAL_OPTIONS% 
 
 
 

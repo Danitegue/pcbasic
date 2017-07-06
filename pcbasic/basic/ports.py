@@ -360,7 +360,7 @@ class SerialStream(object):
 
     def __init__(self, port, input_methods, do_open):
         """Initialise the stream."""
-        self._serial = serial.serial_for_url(port, timeout=0, do_not_open=not do_open)
+        self._serial = serial.serial_for_url(str(port), timeout=0, do_not_open=not do_open)
         # for wait()
         self._input_methods = input_methods
         self._url = port

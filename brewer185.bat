@@ -7,17 +7,17 @@ rem ****************************************************************************
 rem Use the variables in this section to configure the execution of the program
 rem ****************************************************************************
 rem Use NOBREW=1 if the brewer is not connected
-set NOBREW=""
+set NOBREW=
 rem Set the BREWDIR enviroment variable: where to find the main.asc respect the pcbasic mounted drives (full path)
-set BREWDIR=C:\
+set BREWDIR=c:\
 rem BREWER_PROGRAM indicates the brewer program folder in which the main.asc file is contained
 set BREWER_PROGRAM=C:\GWBasic_Interpreter\brw#185\Program
 rem MAIN_FILE is the name of the main GW-Basic file
 set MAIN_FILE=main.asc
 rem BREWER_BDATA indicates the brewer bdata folder
 set BREWER_BDATA=C:\GWBasic_Interpreter\brw#185\bdata185
-rem COM_PORT is the identifier of the port in which the brewer is connected
-set COM_PORT=8
+rem COM_PORT is the identifier of the port in which the brewer is connected, for example COM_PORT=COM8
+set COM_PORT=COM8
 rem PCBASIC_PATH is the path in which the pcbasic.py file is located
 set PCBASIC_PATH=C:\GWBasic_Interpreter\pcbasic_brewer
 rem PYTHON_DIR is the folder in which the python.exe is located
@@ -41,9 +41,9 @@ PROMPT Brewer $P$G
 
 @echo on
 rem * Run the Brewer software
-%PCBASIC_PATH%\ansipipe-launcher.exe %PYTHON_DIR%\python.exe %PCBASIC_PATH%\pcbasic.py %MAIN_FILE% --mount=C:%BREWER_PROGRAM%,D:%BREWER_BDATA% --quit=False --interface=ansi -f=10 -s=256 --double=True --com1=PORT:8 --logfile=C:\O.txt
+%PCBASIC_PATH%\ansipipe-launcher.exe %PYTHON_DIR%\python.exe %PCBASIC_PATH%\pcbasic.py "--run=%MAIN_FILE%" "--mount=C:%BREWER_PROGRAM%,D:%BREWER_BDATA%" "--quit=False" "--interface=ansi" "-f=10" "-s=256" "--double=True" "--com1=PORT:%COM_PORT%" "--logfile=C:\O.txt"
 
-
+REM "--run=C:\GWBasic_Interpreter\brw#185\Program\main.asc" "--mount=C:C:\GWBasic_Interpreter\brw#185\Program,D:C:\GWBasic_Interpreter\brw#185\bdata185" "--quit=False" "--interface=pygame" "-f=10" "-s=256" "--double=True" "--com1=PORT:COM8" "--logfile=C:\O.txt"
 
 
 rem * On exit, undo the changes what were done above

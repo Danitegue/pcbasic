@@ -1,0 +1,1 @@
+This is a clone of the original pyserial package but modified exclusively to work with Brewer spectrophotometers.

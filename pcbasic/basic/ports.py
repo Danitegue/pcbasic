@@ -28,24 +28,8 @@ else:
         return select.select([sys.stdin], [], [], 0)[0] != []
 
 try:
-    from .. import config
-    c = config.get_unicode_argv()
-    if '--use-serial-brewer=True' in c:
-        useserialbrewer = True
-    else:
-        useserialbrewer = False
-
-    if useserialbrewer:
-        #sys.path.append('C:/GWBasic_Interpreter/pcbasic_brewer/pcbasic/brewlib')
-        from ..brewlib import serial as serial
-        from ..brewlib.serial import SerialException, serialutil
-        #from serial import SerialException, serialutil
-        #from ..brewlib.serialbrewer.serialbrewerwin32 import SerialException
-
-    else:
-        import serial
-        from serial import SerialException, serialutil
-
+    import serial
+    from serial import SerialException, serialutil
 except Exception:
     serial = None
     SerialException = IOError
@@ -104,10 +88,6 @@ class COMDevice(devices.Device):
         """Open a file on COMn: """
         if not self.stream:
             raise error.RunError(error.DEVICE_UNAVAILABLE)
-
-        print "Before open, stream, ", self.stream
-        print "comfile", self.device_file
-
         # PE setting not implemented
         speed, parity, bytesize, stop, rs, cs, ds, cd, lf, _ = self.get_params(param)
         # open the COM port
@@ -129,13 +109,6 @@ class COMDevice(devices.Device):
         # inherit width settings from device file
         f.width = self.device_file.width
         f.col = self.device_file.col
-
-        #As nestor discovered, a temporal vable is created (f) in the COMFile open() function. As result, there was a COMFile identifier for events, and another one for accessing the port.
-        self.device_file = f
-        print "After open, stream, ", self.stream
-        print "comfile", self.device_file
-        #print "f", f
-
         return f
 
     def get_params(self, param):
@@ -176,7 +149,7 @@ class COMDevice(devices.Device):
                 continue
             try:
                 if named_param == 'RS':
-                    # suppress request to send (RTS)
+                    # suppress request to send
                     rs = True
                 elif named_param[:2] == 'CS':
                     # set CTS timeout - clear to send
@@ -422,8 +395,8 @@ class SerialStream(object):
         # by default, RTS is up, DTR down
         # RTS can be suppressed, DTR only accessible through machine ports
         # https://lbpe.wikispaces.com/AccessingSerialPort
-        #if not rs:
-        #    self._serial.setRTS(True)
+        if not rs:
+            self._serial.setRTS(True)
         now = datetime.datetime.now()
         timeout_cts = now + datetime.timedelta(microseconds=cs)
         timeout_dsr = now + datetime.timedelta(microseconds=ds)
@@ -492,8 +465,7 @@ class SerialStream(object):
         # NOTE: num=1 follows PySerial
         # stream default is num=-1 to mean all available
         # but that's ill-defined for ports
-        read_from_serial = self._serial.read(num)
-        return read_from_serial
+        return self._serial.read(num)
 
     def write(self, s):
         """Write to socket."""

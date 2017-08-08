@@ -25,29 +25,10 @@ from . import ansipipe
 from . import basic
 from . import state
 from . import config
-#from . import brewlib #As a package of modules
-
 
 
 def main(*arguments):
     """Wrapper for run() to deal with Ctrl-C, stdio and pipes."""
-
-    import os
-
-    #BREWDIR = "c:/"
-    #NOBREW = ""
-
-    if 'BREWDIR' in os.environ.keys():
-        print "BREWDIR already exist in the enviroment variables, with value:", os.environ['BREWDIR']
-
-    if 'NOBREW' in os.environ.keys():
-        print "NOBREW already exist in the enviroment variables, with value:", os.environ['NOBREW']
-
-
-
-
-
-
     try:
         run(*arguments)
     except KeyboardInterrupt:

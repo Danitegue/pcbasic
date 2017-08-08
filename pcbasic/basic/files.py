@@ -372,8 +372,7 @@ class Files(object):
         else:
             file_obj = self.devices.kybd_file
         list(args)
-        res = self._values.new_string().from_str(file_obj.input_chars(num))
-        return res
+        return self._values.new_string().from_str(file_obj.input_chars(num))
 
     def write_(self, args):
         """WRITE: Output machine-readable expressions to the screen or a file."""

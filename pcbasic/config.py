@@ -315,7 +315,7 @@ class Settings(object):
             u'type': u'string', u'choices': (u'rgb', u'composite', u'mono'),
             u'default': u'rgb',},
         u'aspect': {u'type': u'int', u'list': 2, u'default': [4, 3],},
-        u'scaling': {u'type': u'string', u'choices':(u'smooth', u'native', u'crisp'), u'default': u'native',},
+        u'scaling': {u'type': u'string', u'choices':(u'smooth', u'native', u'crisp'), u'default': u'smooth',},
         u'version': {u'type': u'bool', u'default': False,},
         u'config': {u'type': u'string', u'default': u'',},
         u'logfile': {u'type': u'string', u'default': u'',},
@@ -332,8 +332,6 @@ class Settings(object):
         u'ctrl-c-break': {u'type': u'bool', u'default': True,},
         u'wait': {u'type': u'bool', u'default': False,},
         u'current-device': {u'type': u'string', u'default': 'Z'},
-        u'use-serial-brewer': {u'type': u'bool', u'default': True},
-        u'use-serial-brewer-verbose': {u'type': u'bool', u'default': True}
     }
 
 
@@ -652,47 +650,33 @@ class Settings(object):
         """Convert arguments to dictionary."""
         args = {}
         pos = 0
-        # Modified by dani on 20170719, in order to ignore the extra positional arguments that pycharm add in debug mode
-        pycharm_args = ['--multiproc','--qt-support','--client','127.0.0.1','--port','--file']
         for arg in argv:
-            if arg not in pycharm_args and 'pcbasic.py' not in arg and "PyCharm" not in arg:
-                key, value = safe_split(arg, u'=')
-                if key:
-                    if key[0:2] == u'--':
-                        if key[2:]:
-                            append_arg(args, key[2:], value)
-                    elif key[0] == u'-':
-                        for i, short_arg in enumerate(key[1:]):
-                            try:
-                                skey, svalue = safe_split(self.short_args[short_arg], u'=')
-                                if not svalue and not skey:
-                                    continue
-                                if (not svalue) and i == len(key)-2:
-                                    # assign value to last argument specified
-                                    append_arg(args, skey, value)
-                                else:
-                                    append_arg(args, skey, svalue)
-                            except KeyError:
-                                self._logger.warning(u'Ignored unrecognised option "-%s"', short_arg)
-                    elif pos < self.positional:
-                        # positional argument
-                        # Detect a pycharm thread argument
+            key, value = safe_split(arg, u'=')
+            if key:
+                if key[0:2] == u'--':
+                    if key[2:]:
+                        append_arg(args, key[2:], value)
+                elif key[0] == u'-':
+                    for i, short_arg in enumerate(key[1:]):
                         try:
-                            testf=int(arg)
-                            argisint=True
-                            self._logger.warning(u'Ignored pycharm int args "=%s"', arg)
-                        except:
-                            argisint = False
-
-                        if not argisint:
-                            args[pos] = arg
-                            pos += 1
-                    else:
-                        self._logger.warning(u'Ignored extra positional argument "%s"', arg)
+                            skey, svalue = safe_split(self.short_args[short_arg], u'=')
+                            if not svalue and not skey:
+                                continue
+                            if (not svalue) and i == len(key)-2:
+                                # assign value to last argument specified
+                                append_arg(args, skey, value)
+                            else:
+                                append_arg(args, skey, svalue)
+                        except KeyError:
+                            self._logger.warning(u'Ignored unrecognised option "-%s"', short_arg)
+                elif pos < self.positional:
+                    # positional argument
+                    args[pos] = arg
+                    pos += 1
                 else:
-                    self._logger.warning(u'Ignored unrecognised option "=%s"', value)
+                    self._logger.warning(u'Ignored extra positional argument "%s"', arg)
             else:
-                self._logger.warning(u'Ignored pycharm args "=%s"', arg)
+                self._logger.warning(u'Ignored unrecognised option "=%s"', value)
         return args
 
     def _parse_presets(self, remaining, conf_dict):

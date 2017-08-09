@@ -486,7 +486,9 @@ class Devices(object):
         self.lpt1_file = self.devices['LPT1:'].device_file
         # serial devices
         # buffer sizes (/c switch in GW-BASIC)
+        print 'Initializating the GWBASIC Com Port 1'
         self.devices['COM1:'] = ports.COMDevice(device_params['COM1:'], input_methods, devices.Field(serial_in_size), serial_in_size)
+        print 'Initializating the GWBASIC Com Port 2'
         self.devices['COM2:'] = ports.COMDevice(device_params['COM2:'], input_methods, devices.Field(serial_in_size), serial_in_size)
         # cassette
         # needs a screen for write() and write_line() to display Found and Skipped messages on opening files

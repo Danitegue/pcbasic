@@ -70,14 +70,18 @@ class COMDevice(devices.Device):
 
     def __init__(self, arg, input_methods, field, serial_in_size):
         """Initialise COMn: device."""
+
         devices.Device.__init__(self)
         addr, val = devices.parse_protocol_string(arg)
+        print "Initialize the COM port:", val
         self.stream = None
         self.input_methods = input_methods
         self.field = field
         self.serial_in_size = serial_in_size
         try:
             if not addr and not val:
+                print "Aborted, None port to attach to."
+                #self.stream = None
                 pass
             elif addr == 'SOCKET':
                 self.stream = SocketSerialStream(val, self.input_methods, do_open=False)
@@ -92,12 +96,14 @@ class COMDevice(devices.Device):
         except (ValueError, EnvironmentError) as e:
             logging.warning('Could not attach %s to COM device: %s', arg, e)
             self.stream = None
-        except AttributeError:
+        except AttributeError as e:
             logging.warning('Serial module not available. Could not attach %s to COM device: %s.', arg, e)
             self.stream = None
         if self.stream:
             # NOTE: opening a text file automatically tries to read a byte
             self.device_file = COMFile(self.stream, self.field, self.input_methods, False, serial_in_size)
+            print "SerialStream=", self.stream
+            print "DeviceFile=", self.device_file
 
     def open(self, number, param, filetype, mode, access, lock,
                        reclen, seg, offset, length):
@@ -110,6 +116,7 @@ class COMDevice(devices.Device):
 
         # PE setting not implemented
         speed, parity, bytesize, stop, rs, cs, ds, cd, lf, _ = self.get_params(param)
+
         # open the COM port
         if self.stream.is_open:
             raise error.RunError(error.FILE_ALREADY_OPEN)
@@ -125,6 +132,7 @@ class COMDevice(devices.Device):
         except Exception:
             self.stream.close()
             raise
+
         f = COMFile(self.stream, self.field, self.input_methods, lf, self.serial_in_size)
         # inherit width settings from device file
         f.width = self.device_file.width
@@ -132,6 +140,7 @@ class COMDevice(devices.Device):
 
         #As nestor discovered, a temporal vable is created (f) in the COMFile open() function. As result, there was a COMFile identifier for events, and another one for accessing the port.
         self.device_file = f
+
         print "After open, stream, ", self.stream
         print "comfile", self.device_file
         #print "f", f
@@ -226,6 +235,7 @@ class COMFile(devices.CRLFTextFileBase):
         self.in_buffer = bytearray()
         self.linefeed = linefeed
         self.overflow = False
+
 
     def _check_read(self, allow_overflow=False):
         """Fill buffer at most up to buffer size; non blocking."""

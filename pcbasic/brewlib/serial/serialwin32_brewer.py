@@ -95,8 +95,8 @@ class Win32Serial(SerialBase):
         if the port cannot be opened.
         """
         if self.verbose:
-            sys.stdout.write("Using SerialBrewer module for communications\n")
-        logging.info("Using SerialBrewer module for communications")
+            sys.stdout.write("Using SerialBrewer module for oppening communications\n")
+        logging.info("Using SerialBrewer module for oppening communications")
 
         if self._port is None:
             raise SerialException("Port must be configured before it can be used.")

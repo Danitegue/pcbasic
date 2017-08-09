@@ -53,6 +53,8 @@ if '--use-serial-brewer-verbose=True' in c:
 else:
     verbose = False
 
+Simulate_Brewer_connected = True
+
 def device(portnum):
     """Turn a port number into a device name"""
     return 'COM%d' % (portnum+1) # numbers are transformed to a string
@@ -93,8 +95,8 @@ class Win32Serial(SerialBase):
         if the port cannot be opened.
         """
         if self.verbose:
-            sys.stdout.write("Opening with SerialBrewer\n")
-        logging.info("Opening with SerialBrewer")
+            sys.stdout.write("Using SerialBrewer module for communications\n")
+        logging.info("Using SerialBrewer module for communications")
 
         if self._port is None:
             raise SerialException("Port must be configured before it can be used.")
@@ -158,9 +160,9 @@ class Win32Serial(SerialBase):
             success_output = ""
             success_output += "************************\n"
             if (success):
-                success_output += "Connection Successful!(" + str(self.baudrate) + ")\n"
+                success_output += "Connection with Brewer Successful!(" + str(self.baudrate) + ")\n"
             else:
-                success_output += "Communication failed\n"
+                success_output += "Communication with Brewer failed\n"
             success_output += "************************\n"
 
             if self.verbose:
@@ -422,7 +424,7 @@ class Win32Serial(SerialBase):
         self._reconfigurePort()
 
         success = False
-        for test_number in range(1,10):
+        for test_number in range(1,5):
             if self.verbose:
                 sys.stdout.write("Trying communication (%d), attempt #%d -> \n" % (self.baudrate, test_number))
             logging.info("Trying communication (%d), attempt #%d -> " % (self.baudrate, test_number))
@@ -457,6 +459,10 @@ class Win32Serial(SerialBase):
                 input_string += self.read(3)
 
             time.sleep(0.01)
+
+        if Simulate_Brewer_connected:
+            print "Simulating a brewer connected..."
+            return True
 
         # If prompt is found, get Brewer ID
         if (input_string.find("->") != -1):

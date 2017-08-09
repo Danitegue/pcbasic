@@ -104,7 +104,7 @@ class COMDevice(devices.Device):
         """Open a file on COMn: """
         if not self.stream:
             raise error.RunError(error.DEVICE_UNAVAILABLE)
-
+        print "Opening a file on COM port, as file number", number
         print "Before open, stream, ", self.stream
         print "comfile", self.device_file
 

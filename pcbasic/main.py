@@ -26,7 +26,7 @@ from . import basic
 from . import state
 from . import config
 #from . import brewlib #As a package of modules
-
+import datetime
 
 
 def main(*arguments):
@@ -36,7 +36,7 @@ def main(*arguments):
 
     #BREWDIR = "c:/"
     #NOBREW = ""
-
+    print "Started PCBASIC session at", datetime.datetime.now()
     if 'BREWDIR' in os.environ.keys():
         print "BREWDIR already exist in the enviroment variables, with value:", os.environ['BREWDIR']
 
@@ -178,6 +178,7 @@ def run_session(iface=None, resume=False, state_file=None, wait=False,
             session = basic.Session(iface, **session_params)
         try:
             if prog:
+                print "Loading program", prog
                 session.load_program(prog)
             for cmd in commands:
                 session.execute(cmd)

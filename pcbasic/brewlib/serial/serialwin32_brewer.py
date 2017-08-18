@@ -17,12 +17,19 @@
 # Replaced all self.is_open by self._isOpen
 # Renamed the nestor _reconfigure_port by _reconfigurePort
 # Replaced function name in_waiting by inWaiting
-# Replaced the entire read function.
+# Corrected the read function.
 # Replaced self.out_waiting() to self.outWaiting
 # Replaced _write_timeout by _writeTiemout
-# Replaced the  by sendBreak, setBreak, setRTS, setDTR, _GetCommModemStatus, getCTS, getDSR, getRI, getCD
-# Replaced set_buffer_size by setBufferSize
-# Replaced the set_output_flow_control by setXON
+# Replaced the _update_break_state by setBreak,
+# Replaced the _update_rts_state by setRTS,
+# Replaced the update_dtr_state by setDTR,
+# Replaced the GetCommModemStatus by _GetCommModemStatus
+# Renamed the cts to getCTS
+# Renamed the dsr to getDSR
+# Renamed the ri to getRI
+# Renamed the cd to getCD
+# Renamed set_buffer_size by setBufferSize
+# Renamed the set_output_flow_control by setXON
 
 
 

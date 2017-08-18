@@ -498,7 +498,7 @@ class SerialStream(object):
 
     def read(self, num=1):
         """Non-blocking read from socket."""
-        self._check_open()
+        # self._check_open() #line commented by Dani on 20170818 to prevent oppening the serial before it should be opened
         # NOTE: num=1 follows PySerial
         # stream default is num=-1 to mean all available
         # but that's ill-defined for ports

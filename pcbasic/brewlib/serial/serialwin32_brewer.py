@@ -60,7 +60,8 @@ if '--use-serial-brewer-verbose=True' in c:
 else:
     verbose = False
 
-Simulate_Brewer_connected = True
+#Simulate_Brewer_connected = True
+Simulate_Brewer_connected = False
 
 def device(portnum):
     """Turn a port number into a device name"""
@@ -138,7 +139,7 @@ class Win32Serial(SerialBase):
             self._overlappedWrite.hEvent = win32.CreateEvent(None, 0, 0, None)
 
             # # Setup a 4k buffer
-            win32.SetupComm(self.hComPort, 4096, 4096)
+            # win32.SetupComm(self.hComPort, 4096, 4096)
 
             # Save original timeout values:
             self._orgTimeouts = win32.COMMTIMEOUTS()
@@ -149,7 +150,7 @@ class Win32Serial(SerialBase):
 
             # Clear buffers:
             # Remove anything that was there
-            # win32.PurgeComm(self.hComPort,
+            #win32.PurgeComm(self.hComPort,
             #         win32.PURGE_TXCLEAR | win32.PURGE_TXABORT |
             #         win32.PURGE_RXCLEAR | win32.PURGE_RXABORT)
 
@@ -596,55 +597,57 @@ class Win32Serial(SerialBase):
                     if err==0:
                         errcode=win32.GetLastError()
                         if errcode != win32.ERROR_IO_PENDING: #win32.ERROR_IO_PENDING=997
-                            print "Got win32.GetLastError() =", errcode
+                            logging.warning("Got win32.GetLastError() = %s", str(errcode))
                             raise SerialException("ReadFile failed (%r)" % ctypes.WinError())
 
                     #win32.WaitForSingleObject will return a zero if the ovelapped function has finished.
-                    err = win32.WaitForSingleObject(self._overlappedRead.hEvent, win32.INFINITE)
+                    err1 = win32.WaitForSingleObject(self._overlappedRead.hEvent, win32.INFINITE)
 
                     #Added by Dani on 20170808, if this is not present, the ctypes.byref(rc) is not updated when the overlapped
                     #operation is finished.
-                    if not err:
-                        err = win32.GetOverlappedResult(self.hComPort, ctypes.byref(self._overlappedRead), ctypes.byref(rc),True)
+                    if not err1:
+                        err2 = win32.GetOverlappedResult(self.hComPort, ctypes.byref(self._overlappedRead), ctypes.byref(rc),True)
                         #If the function succeeds, the return value is nonzero.
-                        if err != 0:
+                        if err2 != 0:
                             #rc.value is zero, so the read is always empty.
                             read = buf.raw[:rc.value]
                         else:
-                            print "Error in GetOverlappedResult"
+                            logging.warning("Error in GetOverlappedResult = %s", str(err2))
                             read = bytes()
                     else:
-                        print "Error in WaitForSingleObject"
+                        logging.warning("Error in WaitForSingleObject = %s", str(err1))
                         read = bytes()
 
                 else:
                     read = bytes()
             else:
+                # case self.timeout != 0
                 buf = ctypes.create_string_buffer(size)
                 rc = win32.DWORD()
                 err = win32.ReadFile(self.hComPort, buf, size, ctypes.byref(rc), ctypes.byref(self._overlappedRead))
                 if err==0:
                     errcode = win32.GetLastError()
                     if errcode != win32.ERROR_IO_PENDING:  # win32.ERROR_IO_PENDING=997
-                        print "Got win32.GetLastError() =", errcode
+                        logging.warning("Got win32.GetLastError() = %s", str(errcode))
                         raise SerialException("ReadFile failed (%r)" % ctypes.WinError())
 
                 # win32.WaitForSingleObject will return a zero if the ovelapped function has finished.
-                err = win32.WaitForSingleObject(self._overlappedRead.hEvent, self.timeout)
+                err1 = win32.WaitForSingleObject(self._overlappedRead.hEvent, self.timeout)
 
-                if not err:
-                    err = win32.GetOverlappedResult(self.hComPort, ctypes.byref(self._overlappedRead), ctypes.byref(rc), True)
+                if not err1:
+                    err2 = win32.GetOverlappedResult(self.hComPort, ctypes.byref(self._overlappedRead), ctypes.byref(rc), True)
                     # If the function succeeds, the return value is nonzero.
-                    if err != 0:
+                    if err2 != 0:
                         # rc.value is zero, so the read is always empty.
                         read = buf.raw[:rc.value]
                     else:
-                        print "Error in GetOverlappedResult"
+                        logging.warning("Error in GetOverlappedResult = %s", str(err2))
                         read = bytes()
                 else:
-                    print "Error in WaitForSingleObject"
+                    logging.warning("Error in WaitForSingleObject = %s", str(err1))
                     read = bytes()
         else:
+            logging.warning("Error, Bytes to read has to be > 0.")
             read = bytes()
         return bytes(read)
 
@@ -655,8 +658,8 @@ class Win32Serial(SerialBase):
         """Output the given byte string over the serial port."""
         
         #This was not commented in the nestor version, but is not present in the last serialwin32 version:
-        #self._writeTimeout = 0
-        #self.flush()
+        self._writeTimeout = 0
+        self.flush()
 
         if not self.hComPort: raise portNotOpenError
         #~ if not isinstance(data, (bytes, bytearray)):
@@ -664,18 +667,32 @@ class Win32Serial(SerialBase):
         # convert data (needed in case of memoryview instance: Py 3.1 io lib), ctypes doesn't like memoryview
         data = to_bytes(data)
         if data:
-            #~ win32event.ResetEvent(self._overlappedWrite.hEvent)
+            win32.ResetEvent(self._overlappedWrite.hEvent)
             n = win32.DWORD()
             err = win32.WriteFile(self.hComPort, data, len(data), ctypes.byref(n), self._overlappedWrite)
-            if not err and win32.GetLastError() != win32.ERROR_IO_PENDING:
-                raise SerialException("WriteFile failed (%r)" % ctypes.WinError())
+            if not err:
+                errcode = win32.GetLastError()
+                if errcode != win32.ERROR_IO_PENDING:
+                    logging.warning("win32.WriteFile failed, got error= %s", str(errcode))
+                    raise SerialException("WriteFile failed (%r)" % ctypes.WinError())
+                else:
+                    # Wait for the write to complete.
+                    win32.WaitForSingleObject(self._overlappedWrite.hEvent, win32.INFINITE)
+                    # Retrieve the status of the object
+                    err2 = win32.GetOverlappedResult(self.hComPort, self._overlappedWrite, ctypes.byref(n), True)
+                    # If the function succeeds, the return value is nonzero.
+                    if err2 == 0:
+                        logging.warning('Got GetOverlappedResult error while retrieving the writting operation')
+
             if self._writeTimeout != 0:  # if blocking (None) or w/ write timeout (>0)
                 # Wait for the write to complete.
                 #~ win32.WaitForSingleObject(self._overlappedWrite.hEvent, win32.INFINITE)
                 #GetOverlappedResult - If the function succeeds, the return value is nonzero
                 err = win32.GetOverlappedResult(self.hComPort, self._overlappedWrite, ctypes.byref(n), True)
-                if n.value != len(data):
-                    raise writeTimeoutError
+
+            if n.value != len(data):
+                logging.warning("Error while writting, the number of bytes to send (%s) not the same of bytes sent (%s)",str(n.value), str(len(data)))
+                raise writeTimeoutError
             return n.value
         else:
             return 0

@@ -73,14 +73,14 @@ class COMDevice(devices.Device):
 
         devices.Device.__init__(self)
         addr, val = devices.parse_protocol_string(arg)
-        print "Initialize the COM port:", val
+        logging.debug("Initialize the COM port: %s", str(val))
         self.stream = None
         self.input_methods = input_methods
         self.field = field
         self.serial_in_size = serial_in_size
         try:
             if not addr and not val:
-                print "Aborted, None port to attach to."
+                logging.debug("Aborted, None port to attach to.")
                 #self.stream = None
                 pass
             elif addr == 'SOCKET':
@@ -102,17 +102,17 @@ class COMDevice(devices.Device):
         if self.stream:
             # NOTE: opening a text file automatically tries to read a byte
             self.device_file = COMFile(self.stream, self.field, self.input_methods, False, serial_in_size)
-            print "SerialStream=", self.stream
-            print "DeviceFile=", self.device_file
+            #logging.debug("SerialStream= %s", self.stream)
+            logging.debug("DeviceFile= %s", self.device_file)
 
     def open(self, number, param, filetype, mode, access, lock,
                        reclen, seg, offset, length):
         """Open a file on COMn: """
         if not self.stream:
             raise error.RunError(error.DEVICE_UNAVAILABLE)
-        print "Opening a file on COM port, as file number", number
-        print "Before open, stream, ", self.stream
-        print "comfile", self.device_file
+        logging.debug("Opening a file on COM port, as file number %s", str(number))
+        #logging.debug("Before open, stream: %s", str(self.stream))
+        logging.debug("Before open, comfile: %s", str(self.device_file))
 
         # PE setting not implemented
         speed, parity, bytesize, stop, rs, cs, ds, cd, lf, _ = self.get_params(param)
@@ -141,9 +141,8 @@ class COMDevice(devices.Device):
         #As nestor discovered, a temporal vable is created (f) in the COMFile open() function. As result, there was a COMFile identifier for events, and another one for accessing the port.
         self.device_file = f
 
-        print "After open, stream, ", self.stream
-        print "comfile", self.device_file
-        #print "f", f
+        #logging.debug("After open, stream: %s", str(self.stream))
+        logging.debug("After open, comfile: %s", str(self.device_file))
 
         return f
 
@@ -217,6 +216,8 @@ class COMDevice(devices.Device):
         """Whether a char is present in buffer. For ON COM(n)."""
         if not self.device_file:
             return False
+        #This line was missing in the new pcbasic respect the nestor version
+        self.device_file._check_read()
         return self.device_file.in_buffer != ''
 
 
@@ -271,6 +272,9 @@ class COMFile(devices.CRLFTextFileBase):
                 del self.in_buffer[:to_read]
                 # allow for break & screen updates
                 self.input_methods.wait()
+        if len(out) > 0:
+            free = self.lof()
+            logging.debug("Readed from com port: %s, space in input buffer=%s", str(out), str(free))
         return out
 
     def read_line(self):
@@ -287,10 +291,12 @@ class COMFile(devices.CRLFTextFileBase):
                 else:
                     break
             out += ''.join(c)
+        logging.debug('Serial line received: %s', str(out))
         return out
 
     def write_line(self, s=''):
         """Write string or bytearray and newline to port."""
+        logging.debug("Writting line to com port: %s", str(s))
         self.write(str(s) + '\r')
 
     def write(self, s):
@@ -298,6 +304,7 @@ class COMFile(devices.CRLFTextFileBase):
         try:
             if self.linefeed:
                 s = s.replace('\r', '\r\n')
+            logging.debug("Writting string to com port: %s", str(s))
             self.fhandle.write(s)
         except (EnvironmentError, ValueError):
             raise error.RunError(error.DEVICE_IO_ERROR)
@@ -325,7 +332,8 @@ class COMFile(devices.CRLFTextFileBase):
 
     def lof(self):
         """Returns number of bytes free in buffer."""
-        return self.serial_in_size - self.loc()
+        free = self.serial_in_size - self.loc()
+        return free
 
 
 class StdIOStream(object):
@@ -507,12 +515,13 @@ class SerialStream(object):
 
     def write(self, s):
         """Write to socket."""
-        self._check_open()
+        #self._check_open()
+        logging.debug("Writting to socket: %s", str(s))
         self._serial.write(s)
 
     def io_waiting(self):
         """ Find out whether bytes are waiting for input or output. """
-        self._check_open()
+        #self._check_open()
         return self._serial.inWaiting() > 0, self._serial.outWaiting() > 0
 
 

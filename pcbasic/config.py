@@ -655,6 +655,7 @@ class Settings(object):
         # Modified by dani on 20170719, in order to ignore the extra positional arguments that pycharm add in debug mode
         pycharm_args = ['--multiproc','--qt-support','--client','127.0.0.1','--port','--file']
         for arg in argv:
+            #self._logger.warning(u'Reading arg "=%s"', arg)
             if arg not in pycharm_args and 'pcbasic.py' not in arg and "PyCharm" not in arg:
                 key, value = safe_split(arg, u'=')
                 if key:

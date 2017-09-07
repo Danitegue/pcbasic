@@ -178,7 +178,8 @@ def run_session(iface=None, resume=False, state_file=None, wait=False,
             session = basic.Session(iface, **session_params)
         try:
             if prog:
-                print "Loading program", prog
+                logging.debug("Loading prgram %s", prog)
+                #print "Loading program", prog
                 session.load_program(prog)
             for cmd in commands:
                 session.execute(cmd)

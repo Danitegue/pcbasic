@@ -463,6 +463,7 @@ class SerialStream(object):
                 (ds > 0 and not have_dsr) or
                 (cd > 0 and not have_cd)):
             raise error.RunError(error.DEVICE_TIMEOUT)
+        #Set the serial stream as open
         self.is_open = True
 
     def set_params(self, speed, parity, bytesize, stop):
@@ -516,7 +517,7 @@ class SerialStream(object):
     def write(self, s):
         """Write to socket."""
         #self._check_open()
-        logging.debug("Writting to socket: %s", str(s))
+        #logging.debug("Writting to socket: %s", str(s))
         self._serial.write(s)
 
     def io_waiting(self):

@@ -10,3 +10,4 @@ test/.coverage
 test/htmlcov
 test/gwbasicdir
 pcbasic.egg-info/
+desktop.ini

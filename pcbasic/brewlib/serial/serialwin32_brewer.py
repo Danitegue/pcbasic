@@ -163,9 +163,9 @@ class Win32Serial(SerialBase):
                 success = self.tryConnection()
                 if success:
                     time.sleep(1)
-                    win32.PurgeComm(self.hComPort,
-                             win32.PURGE_TXCLEAR | win32.PURGE_TXABORT |
-                             win32.PURGE_RXCLEAR | win32.PURGE_RXABORT)
+                    #win32.PurgeComm(self.hComPort,
+                    #         win32.PURGE_TXCLEAR | win32.PURGE_TXABORT |
+                    #         win32.PURGE_RXCLEAR | win32.PURGE_RXABORT)
                     break
 
 
@@ -436,50 +436,62 @@ class Win32Serial(SerialBase):
         self._reconfigurePort()
 
         success = False
-        for test_number in range(1,5):
+        for test_number in range(1,6):
             if self.verbose:
                 sys.stdout.write("Trying communication (%d), attempt #%d -> \n" % (self.baudrate, test_number))
-            logging.info("Trying communication (%d), attempt #%d -> " % (self.baudrate, test_number))
+                logging.info("Trying communication (%d), attempt #%d -> " % (self.baudrate, test_number))
 
             # Initial test: prompt found? ("->")
             response = self.check_brewer_communication()
             if not response==True:
                 if self.verbose:
-                    sys.stdout.write("Test 1 failed\r")
-                logging.info("Test 1 failed")
+                    sys.stdout.write("Test "+str(test_number)+" failed\r")
+                    logging.info("Test "+str(test_number)+" failed")
+                    time.sleep(1)
                 continue
             else:
                 return True
 
             success = self.check_brewer_id()
 
-            if (success):
-                return success
-
         return False
-        # return success
 
 
 
     def check_brewer_communication(self):
         t1 = datetime.now()
-        self.write('\r\r\r\r')
-        ReadWhile = 200000 #miliseconds
+        #self.write('\r\r\r\r')
+        self.write('\r')
+        ReadWhile = 5.0 #seconds
         input_string = ""
-        while((datetime.now() - t1).microseconds < ReadWhile):
-            if (self.inWaiting != 0):
-                input_string += self.read(3)
+        answ_key = False
+        answ_timeout = False
+        while ((not answ_key) and (not answ_timeout)):
+            t2 = datetime.now()
+            elapsed=float((t2-t1).seconds)
+            #while(((datetime.now() - t1).microseconds / 1.0e6) < ReadWhile):
+            if elapsed < ReadWhile:
+                if (self.inWaiting != 0):
+                    input_string += self.read(self.inWaiting)
+                    #print "received",str(input_string)
+                    if  (input_string.find("->") > 0):
+                        answ_key = True
+                    else:
+                        time.sleep(0.1)
+            else:
+                print "No key received after ", ReadWhile, 'seconds.'
+                answ_timeout = True
 
-            time.sleep(0.01)
 
         if Simulate_Brewer_connected:
             print "Simulating a brewer connected..."
             return True
 
-        # If prompt is found, get Brewer ID
+        # If prompt is found, return true
         if (input_string.find("->") != -1):
             return True
         else:
+            print "No -> found in brewer answer:", str(input_string)
             return False
 
     def check_brewer_id(self):

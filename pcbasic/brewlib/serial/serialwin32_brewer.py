@@ -163,9 +163,9 @@ class Win32Serial(SerialBase):
                 success = self.tryConnection()
                 if success:
                     time.sleep(1)
-                    #win32.PurgeComm(self.hComPort,
-                    #         win32.PURGE_TXCLEAR | win32.PURGE_TXABORT |
-                    #         win32.PURGE_RXCLEAR | win32.PURGE_RXABORT)
+                    win32.PurgeComm(self.hComPort,
+                             win32.PURGE_TXCLEAR | win32.PURGE_TXABORT |
+                             win32.PURGE_RXCLEAR | win32.PURGE_RXABORT)
                     break
 
 

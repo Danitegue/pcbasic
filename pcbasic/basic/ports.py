@@ -16,6 +16,7 @@ import socket
 import datetime
 import platform
 import io
+import time
 
 # kbhit() also appears in video_none.py
 if platform.system() == 'Windows':
@@ -111,7 +112,7 @@ class COMDevice(devices.Device):
         if not self.stream:
             raise error.RunError(error.DEVICE_UNAVAILABLE)
         logging.debug("Opening a file on COM port, as file number %s", str(number))
-        #logging.debug("Before open, stream: %s", str(self.stream))
+        logging.debug("Before open, stream: %s", str(self.stream))
         logging.debug("Before open, comfile: %s", str(self.device_file))
 
         # PE setting not implemented
@@ -141,9 +142,10 @@ class COMDevice(devices.Device):
         #As nestor discovered, a temporal vable is created (f) in the COMFile open() function. As result, there was a COMFile identifier for events, and another one for accessing the port.
         self.device_file = f
 
-        #logging.debug("After open, stream: %s", str(self.stream))
+        logging.debug("After open, stream: %s", str(self.stream))
         logging.debug("After open, comfile: %s", str(self.device_file))
 
+        time.sleep(2)
         return f
 
     def get_params(self, param):
@@ -215,9 +217,11 @@ class COMDevice(devices.Device):
     def char_waiting(self):
         """Whether a char is present in buffer. For ON COM(n)."""
         if not self.device_file:
+            logging.warning('There is no device file to get the chars waiting.')
             return False
         #This line was missing in the new pcbasic respect the nestor version
         self.device_file._check_read()
+
         return self.device_file.in_buffer != ''
 
 
@@ -240,6 +244,7 @@ class COMFile(devices.CRLFTextFileBase):
 
     def _check_read(self, allow_overflow=False):
         """Fill buffer at most up to buffer size; non blocking."""
+        logging.warning('Checking char waiting to be read in com buffer...')
         try:
             self.in_buffer += self.fhandle.read(self.serial_in_size - len(self.in_buffer))
         except (EnvironmentError, ValueError):
@@ -247,6 +252,7 @@ class COMFile(devices.CRLFTextFileBase):
         # if more to read, signal an overflow
         if len(self.in_buffer) >= self.serial_in_size and self.fhandle.read(1):
             self.overflow = True
+            logging.warning('overflow in the serial buffer..., dropping waiting chars that dont fit in buffer')
             # drop waiting chars that don't fit in buffer
             while self.fhandle.read(1):
                 pass
@@ -274,7 +280,7 @@ class COMFile(devices.CRLFTextFileBase):
                 self.input_methods.wait()
         if len(out) > 0:
             free = self.lof()
-            logging.debug("Readed from com port: %s, space in input buffer=%s", str(out), str(free))
+            logging.debug("Readed from read_raw function: %s, space in input buffer=%s", str(out), str(free))
         return out
 
     def read_line(self):
@@ -431,6 +437,7 @@ class SerialStream(object):
     def _check_open(self):
         """Open the underlying port if necessary."""
         if not self._serial._isOpen:
+            logging.warning('Seems that the port is not opened, oppening it')
             self._serial.open()
 
     def open(self, rs=False, cs=1000, ds=1000, cd=0):

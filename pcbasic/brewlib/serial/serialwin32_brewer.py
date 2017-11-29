@@ -162,10 +162,10 @@ class Win32Serial(SerialBase):
                 self._baudrate = baudrate
                 success = self.tryConnection()
                 if success:
-                    time.sleep(1)
                     win32.PurgeComm(self.hComPort,
                              win32.PURGE_TXCLEAR | win32.PURGE_TXABORT |
                              win32.PURGE_RXCLEAR | win32.PURGE_RXABORT)
+                    time.sleep(2)
                     break
 
 
@@ -388,72 +388,32 @@ class Win32Serial(SerialBase):
     #             return True
 
     def tryConnection(self):
-        # if not self.hComPort:
-        #     raise SerialException("Can only operate on a valid port handle")
-        #
-        # # win32.SetCommMask(self.hComPort, win32.EV_ERR)
-        #
-        # # Setup the connection info.
-        # # Get state and modify it:
-        # comDCB = win32.DCB()
-        # win32.GetCommState(self.hComPort, ctypes.byref(comDCB))
-        # comDCB.BaudRate = self._baudrate
-        #
-        # comDCB.fRtsControl = win32.RTS_CONTROL_DISABLE
-        # comDCB.fDtrControl = win32.DTR_CONTROL_DISABLE
-        #
-        # comDCB.ByteSize = 8
-        # comDCB.Parity = win32.NOPARITY
-        # comDCB.StopBits = win32.ONESTOPBIT
-        #
-        # comDCB.fBinary = 1  # Enable Binary Transmission
-        # # Char. w/ Parity-Err are replaced with 0xff (if fErrorChar is set to TRUE)
-        #
-        # comDCB.fOutxDsrFlow = self._dsrdtr
-        # comDCB.fOutX = self._xonxoff
-        # comDCB.fInX = self._xonxoff
-        # comDCB.fNull = 0
-        # comDCB.fErrorChar = 0
-        # comDCB.fAbortOnError = 0
-        # comDCB.XonChar = serial.XON
-        # comDCB.XoffChar = serial.XOFF
-        #
-        # timeouts = win32.COMMTIMEOUTS()
-        # # ReadIntervalTimeout,ReadTotalTimeoutMultiplier,
-        # #  ReadTotalTimeoutConstant,WriteTotalTimeoutMultiplier,
-        # #  WriteTotalTimeoutConstant
-        #
-        # timeouts.ReadIntervalTimeout = win32.MAXDWORD
-        # timeouts.ReadTotalTimeoutMultiplier = 0
-        # timeouts.ReadTotalTimeoutConstant = 0
-        # timeouts.WriteTotalTimeoutMultiplier = 0
-        # timeouts.WriteTotalTimeoutConstant = 0
-        # win32.SetCommTimeouts(self.hComPort, ctypes.byref(timeouts))
-        #
-        # if not win32.SetCommState(self.hComPort, ctypes.byref(comDCB)):
-        #     raise SerialException("Cannot configure port, something went wrong. Original message: %r" % ctypes.WinError())
 
         self._reconfigurePort()
 
         success = False
         for test_number in range(1,6):
             if self.verbose:
-                sys.stdout.write("Trying communication (%d), attempt #%d -> \n" % (self.baudrate, test_number))
+                sys.stdout.write("Trying communication (%d), attempt #%d -> " % (self.baudrate, test_number))
                 logging.info("Trying communication (%d), attempt #%d -> " % (self.baudrate, test_number))
 
             # Initial test: prompt found? ("->")
-            response = self.check_brewer_communication()
-            if not response==True:
+            if (not self.check_brewer_communication()):
                 if self.verbose:
-                    sys.stdout.write("Test "+str(test_number)+" failed\r")
-                    logging.info("Test "+str(test_number)+" failed")
-                    time.sleep(1)
+                    sys.stdout.write("Test failed\n")
+                    logging.info("Test failed")
                 continue
             else:
-                return True
+                sys.stdout.write("Test Successful\n")
+                logging.info("Test Successful")
+                # success = self.check_brewer_id()
+                success = True
 
-            success = self.check_brewer_id()
+            time.sleep(1)
 
+            if success:
+                return success
+        #if no return=true has been done before, return a false at the end
         return False
 
 
@@ -462,7 +422,9 @@ class Win32Serial(SerialBase):
         t1 = datetime.now()
         #self.write('\r\r\r\r')
         self.write('\r')
-        ReadWhile = 5.0 #seconds
+        self.flush()
+        time.sleep(1)  # Wait a little bit to have time to receive something
+        ReadWhile = 2.0 #seconds
         input_string = ""
         answ_key = False
         answ_timeout = False
@@ -473,13 +435,12 @@ class Win32Serial(SerialBase):
             if elapsed < ReadWhile:
                 if (self.inWaiting != 0):
                     input_string += self.read(self.inWaiting)
-                    #print "received",str(input_string)
+                    #logging.debug("Received: %s",str(input_string).replace('\r', '\\r').replace('\n', '\\n').replace('\x00', '\\x00'))
                     if  (input_string.find("->") > 0):
                         answ_key = True
                     else:
                         time.sleep(0.1)
             else:
-                print "No key received after ", ReadWhile, 'seconds.'
                 answ_timeout = True
 
 
@@ -488,10 +449,11 @@ class Win32Serial(SerialBase):
             return True
 
         # If prompt is found, return true
-        if (input_string.find("->") != -1):
+        if answ_key:
             return True
         else:
-            print "No -> found in brewer answer:", str(input_string)
+            logging.info("No -> key received after %s seconds", str(ReadWhile))
+            print "No -> key received after ", ReadWhile, 'seconds. Answer received=',str(input_string)
             return False
 
     def check_brewer_id(self):
@@ -556,6 +518,15 @@ class Win32Serial(SerialBase):
             raise SerialException('call to ClearCommError failed')
         return comstat.cbInQue
 
+    @property
+    def outWaiting(self):
+        """Return how many bytes the in the outgoing buffer"""
+        flags = win32.DWORD()
+        comstat = win32.COMSTAT()
+        if not win32.ClearCommError(self.hComPort, ctypes.byref(flags), ctypes.byref(comstat)):
+            raise SerialException('call to ClearCommError failed')
+        return comstat.cbOutQue
+
     # read nestor
     # def read(self, size=1):
     #     """\
@@ -599,13 +570,16 @@ class Win32Serial(SerialBase):
             comstat = win32.COMSTAT()
             if not win32.ClearCommError(self.hComPort, ctypes.byref(flags), ctypes.byref(comstat)):
                 raise SerialException('call to ClearCommError failed')
-            if self.timeout == 0:
-                n = min(comstat.cbInQue, size)
+            if self.timeout == 0: #This means dont wait to get answer from the serial port
+                n = min(comstat.cbInQue, size) #Determine the number of bytes to read
                 if n > 0:
                     buf = ctypes.create_string_buffer(n)
                     rc = win32.DWORD()
-                    #If the win32.ReadFile function succeeds, the return value is nonzero (TRUE)
-                    #If the function fails, or is completing asynchronously, the return value is zero (FALSE). To get extended error information, call the GetLastError function.
+
+
+                    #Send a order to the O.S. in order to fill the O.S. serial buffer:
+                    # If the win32.ReadFile function succeeds, the return value is 1
+                    # If the function fails, or is completing asynchronously, the return value is zero (FALSE). To get extended error information, call the GetLastError function.
                     # This is giving an error. With win32.GetLastError we can see that is the error 997
                     # which means Overlapped I/O operation is in progress.
 
@@ -616,17 +590,21 @@ class Win32Serial(SerialBase):
                             logging.warning("Got win32.GetLastError() = %s", str(errcode))
                             raise SerialException("ReadFile failed (%r)" % ctypes.WinError())
 
+                    #Ask to the O.S. if the read function has finished:
                     #win32.WaitForSingleObject will return a zero if the ovelapped function has finished.
                     err1 = win32.WaitForSingleObject(self._overlappedRead.hEvent, win32.INFINITE)
 
                     #Added by Dani on 20170808, if this is not present, the ctypes.byref(rc) is not updated when the overlapped
                     #operation is finished.
                     if not err1:
+                        #Read the O.S. serial buffer
                         err2 = win32.GetOverlappedResult(self.hComPort, ctypes.byref(self._overlappedRead), ctypes.byref(rc),True)
                         #If the function succeeds, the return value is nonzero.
                         if err2 != 0:
                             #rc.value is zero, so the read is always empty.
                             read = buf.raw[:rc.value]
+                            logging.debug("Serialwin32_brewer.py read function1 has read: %s",str(read).replace('\r', '\\r').replace('\n', '\\n').replace('\x00', '\\x00'))
+
                         else:
                             logging.warning("Error in GetOverlappedResult = %s", str(err2))
                             read = bytes()
@@ -656,6 +634,8 @@ class Win32Serial(SerialBase):
                     if err2 != 0:
                         # rc.value is zero, so the read is always empty.
                         read = buf.raw[:rc.value]
+                        logging.debug("Serialwin32_brewer.py read function2 has read: %s", str(read).replace('\r', '\\r').replace('\n', '\\n').replace('\x00', '\\x00'))
+
                     else:
                         logging.warning("Error in GetOverlappedResult = %s", str(err2))
                         read = bytes()
@@ -675,7 +655,7 @@ class Win32Serial(SerialBase):
         
         #This was not commented in the nestor version, but is not present in the last serialwin32 version:
         self._writeTimeout = 0
-        self.flush()
+        #self.flush() #This only wait until no output is in the output queue.
 
         if not self.hComPort: raise portNotOpenError
         #~ if not isinstance(data, (bytes, bytearray)):
@@ -894,14 +874,7 @@ class Win32Serial(SerialBase):
     #     else:
     #         win32.EscapeCommFunction(self.hComPort, win32.SETXOFF)
 
-    @property
-    def outWaiting(self):
-        """Return how many bytes the in the outgoing buffer"""
-        flags = win32.DWORD()
-        comstat = win32.COMSTAT()
-        if not win32.ClearCommError(self.hComPort, ctypes.byref(flags), ctypes.byref(comstat)):
-            raise SerialException('call to ClearCommError failed')
-        return comstat.cbOutQue
+
 
     #This was not commented in the nestor code
     #def setBreak(self, value=1):

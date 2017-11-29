@@ -132,6 +132,7 @@ class DataSegment(object):
 
     def clear(self, preserve_common, preserve_all, preserve_deftype):
         """Reset and clear variables, arrays, common definitions and functions."""
+        print '\memory\memory.py, Reset and clear variables: preserve_common=', preserve_common, ', preserve_all=', preserve_all, ', preserve_deftype=',preserve_deftype
         if not preserve_deftype:
             # deftype is not preserved on CHAIN with ALL, but is preserved with MERGE
             self.clear_deftype()
@@ -187,8 +188,25 @@ class DataSegment(object):
         yield
         for name, value in common.iteritems():
             if name[-1] == '$':
-                length, address = self.strings.copy_to(string_store, *value.to_pointer())
-                value = self.values.new_string().from_pointer(length, address)
+
+                #length, address = self.strings.copy_to(string_store, *value.to_pointer()) #Original
+                #value = self.values.new_string().from_pointer(length, address) #Original
+
+                #DS. The value of the string is 'detached' in the new value. This has to be modified.
+                #1- Obtain the memory pointer and len of the actual value
+                #2- Copy the value to the string_store, and obtain the new length and adress in this store.
+                #3- Update the value info with the new address
+                length1, address1 = value.to_pointer()
+                length2, address2 = self.strings.copy_to(string_store, length1,address1)
+
+                value2 = self.values.new_string().from_pointer(length2, address2)#Original solution: It doesn't work.
+
+                #value2 =self.values.from_str_at(string_store._strings[address2], address2) Test1: it doesn't work.
+                #value2 = self.values.new_string().from_value(string_store._strings[address2]) Test2: it doesn't work.
+
+                if str(name) in ['E$','A$','NO$']:
+                    print '\memory\memory.py, _preserve_scalars, var:', str(name),' with value1:', str(value), ' to value2:', str(value2)
+                value=value2
             self.scalars.set(name, value)
 
     def _get_free(self):

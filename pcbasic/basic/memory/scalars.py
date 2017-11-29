@@ -19,6 +19,7 @@ class Scalars(object):
         """Initialise scalars."""
         self._memory = memory
         self._values = values
+        print 'Initializating scalars.py. Clearing scalar variables...'
         self.clear()
 
     def __contains__(self, varname):
@@ -38,6 +39,7 @@ class Scalars(object):
         self._vars = {}
         self._var_memory = {}
         self.current = 0
+        print '\memory\scalars.py, clear(), scalar variables cleant.'
 
     def set(self, name, value=None):
         """Assign a value to a variable."""

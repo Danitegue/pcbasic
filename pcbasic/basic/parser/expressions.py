@@ -246,10 +246,13 @@ class ExpressionParser(object):
         """Parse and evaluate tokenised expression."""
         stack = deque()
         units = deque()
+
         final = True
         # see https://en.wikipedia.org/wiki/Shunting-yard_algorithm
         d = ''
         while True:
+            if 'Merging pdhp' in str(units):
+                print 'got 17 intrusion in expressions parse line 250!'
             last = d
             ins.skip_blank()
             d = ins.read_keyword_token()
@@ -299,7 +302,10 @@ class ExpressionParser(object):
                 name = ins.read_name()
                 error.throw_if(not name, error.STX)
                 indices = self.parse_indices(ins)
-                units.append(self._memory.get_variable(name, indices))
+                var_value=self._memory.get_variable(name, indices)
+                #if name in ['E$','YE$']:
+                #    print 'expressions.py, parse,', str(name), " value=", str(var_value), ' in units line=', str(units)
+                units.append(var_value)
             elif d in self._functions:
                 units.append(self._parse_function(ins, d))
             elif d in tk.END_STATEMENT:

@@ -171,7 +171,9 @@ class StringSpace(object):
 
     def copy_to(self, string_space, length, address):
         """Copy a string to another string space."""
-        return string_space.store(self.view(length, address).tobytes())
+        string_to_copy=self.view(length, address).tobytes()
+        #return string_space.store(self.view(length, address).tobytes())
+        return string_space.store(string_to_copy)
 
     def _retrieve(self, length, address):
         """Retrieve a string by its pointer."""

@@ -158,6 +158,7 @@ class DataSegment(object):
         # release all disk buffers (FIELD)?
         self.reset_fields()
 
+
     @contextmanager
     def _preserve_arrays(self, names, string_store):
         """Preserve COMMON variables."""

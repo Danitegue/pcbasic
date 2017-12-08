@@ -303,8 +303,8 @@ class ExpressionParser(object):
                 error.throw_if(not name, error.STX)
                 indices = self.parse_indices(ins)
                 var_value=self._memory.get_variable(name, indices)
-                #if name in ['E$','YE$']:
-                #    print 'expressions.py, parse,', str(name), " value=", str(var_value), ' in units line=', str(units)
+                if name in ['E$','YE$']: #Get a variable value
+                    print 'expressions.py, parse, getting variable value of var ', str(name), ", value=", str(var_value), ' in units line=', str(units)
                 units.append(var_value)
             elif d in self._functions:
                 units.append(self._parse_function(ins, d))

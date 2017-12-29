@@ -12,7 +12,7 @@ from operator import itemgetter
 
 from ..base import error
 from . import numbers
-
+import copy
 
 class String(numbers.Value):
     """String pointer."""
@@ -163,11 +163,13 @@ class StringSpace(object):
         self._strings.clear()
         # strings are placed at the top of string memory, just below the stack
         self.current = self._memory.stack_start()
+        logging.debug('strings.py, StringSpace.clear(), self.current changed to'+str(self.current))
 
     def rebuild(self, stringspace):
         """Rebuild from stored copy."""
         self.clear()
         self._strings.update(stringspace._strings)
+        self.current = stringspace.current #DS Added this line on 20171227 by RH suggestion.
 
     def copy_to(self, string_space, length, address):
         """Copy a string to another string space."""
@@ -178,6 +180,11 @@ class StringSpace(object):
     def _retrieve(self, length, address):
         """Retrieve a string by its pointer."""
         # if string length == 0, return empty string
+        if length != 0:
+            try:
+                strval=self._strings[address]
+            except KeyError:
+                logging.debug('strings.py, _retrieve, KeyError with address='+str(address)+', length='+str(length))
         return bytearray() if length == 0 else self._strings[address]
 
     def view(self, length, address):
@@ -213,14 +220,18 @@ class StringSpace(object):
         # don't store overlong strings
         if length > 255:
             raise error.RunError(error.STRING_TOO_LONG)
+        currentstart = copy.deepcopy(self.current)
         if address is None:
             # reserve string space; collect garbage if necessary
             self._memory.check_free(length, error.OUT_OF_STRING_SPACE)
             # find new string address
-            self.current -= length
+            #self.current -= length
+            #address = self.current + 1
+            self.current = self.current - length
             address = self.current + 1
         # don't store empty strings
         if length > 0:
+            logging.info('strings.py, store, self.current at start='+str(currentstart)+', storing:' + str(in_str) + ' into address:' + str(address)+ ', self.current at end='+str(self.current)+', len='+str(length))
             # copy and convert to bytearray
             self._strings[address] = bytearray(in_str)
         return length, address
@@ -232,6 +243,7 @@ class StringSpace(object):
             length = len(self._strings[last_address])
             self.current += length
             del self._strings[last_address]
+            logging.debug('strings.py, StringSpace.delete_last(), self.current changed to' + str(self.current))
         except KeyError:
             # happens if we're called before an out-of-memory exception is handled
             # and the string wasn't allocated

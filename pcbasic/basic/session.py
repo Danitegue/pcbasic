@@ -468,6 +468,10 @@ class Session(object):
         self.randomiser.clear()
         # reset stacks & pointers
         self.interpreter.clear()
+        if 'E$' in self.memory.scalars:
+            print 'session.py, _clear_all, value of E$ after function:'+str(self.memory.scalars.get('E$'))
+        if 'ICF$' in self.memory.scalars:
+            print 'session.py, _clear_all, value of ICF$ after function:'+str(self.memory.scalars.get('ICF$'))
 
     def shell_(self, args):
         """SHELL: open OS shell and optionally execute command."""

@@ -1,0 +1,8 @@
+Value of ICF$ before RIGHT function=icf06617
+STR$(YE%+100): 117
+RIGHT$(STR$(YE%+100),2):17
+YF$=17
+DB$=05/
+Value of ICF$ after RIGHT function=icf06617
+Value of ICF$ after RIGHT function=icf06617
+

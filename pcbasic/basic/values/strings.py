@@ -169,7 +169,7 @@ class StringSpace(object):
         """Rebuild from stored copy."""
         self.clear()
         self._strings.update(stringspace._strings)
-        self.current = stringspace.current #DS Added this line on 20171227 by RH suggestion.
+        self.current = stringspace.current
 
     def copy_to(self, string_space, length, address):
         """Copy a string to another string space."""
@@ -192,10 +192,14 @@ class StringSpace(object):
         # empty string pointers can point anywhere
         if length == 0:
             return memoryview(bytearray())
-        # address >= self._memory.var_start(): if we no longer double-store code strings in string space object
-        if address >= self._memory.code_start:
+        if address >= self._memory.var_start(): #if we no longer double-store code strings in string space object
+        #if address >= self._memory.code_start:
             # string stored in string space
             return memoryview(self._retrieve(length, address))
+        elif address >= self._memory.code_start:
+            # get string stored in code as bytearray
+            codestr = self._memory.program.get_memory_block(address, length)
+            return memoryview(codestr)
         else:
             # string stored in field buffers
             # find the file we're in
@@ -220,7 +224,11 @@ class StringSpace(object):
         # don't store overlong strings
         if length > 255:
             raise error.RunError(error.STRING_TOO_LONG)
+<<<<<<< HEAD
         currentstart = copy.deepcopy(self.current)
+=======
+        # don't store if address is provided (code or FIELD strings)
+>>>>>>> rh/master
         if address is None:
             # reserve string space; collect garbage if necessary
             self._memory.check_free(length, error.OUT_OF_STRING_SPACE)
@@ -229,14 +237,21 @@ class StringSpace(object):
             #address = self.current + 1
             self.current = self.current - length
             address = self.current + 1
+<<<<<<< HEAD
         # don't store empty strings
         if length > 0:
             logging.info('strings.py, store, self.current at start='+str(currentstart)+', storing:' + str(in_str) + ' into address:' + str(address)+ ', self.current at end='+str(self.current)+', len='+str(length))
             # copy and convert to bytearray
             self._strings[address] = bytearray(in_str)
+=======
+            # don't store empty strings
+            if length > 0:
+                # copy and convert to bytearray
+                self._strings[address] = bytearray(in_str)
+>>>>>>> rh/master
         return length, address
 
-    def delete_last(self):
+    def _delete_last(self):
         """Delete the string provided if it is at the top of string space."""
         last_address = self.current + 1
         try:
@@ -250,24 +265,27 @@ class StringSpace(object):
             pass
 
     def collect_garbage(self, string_ptrs):
-        """Re-store the strings refrerenced in string_ptrs, delete the rest."""
+        """Re-store the strings referenced in string_ptrs, delete the rest."""
+        # string_ptrs should be a list of memoryviews to the original pointers
         # retrieve addresses and copy strings
         string_list = []
-        for value in string_ptrs:
+        for view in string_ptrs:
             try:
-                length, address = struct.unpack('<BH', value.tobytes())
-                string_list.append((value, address,
-                        self._retrieve(length, address)))
+                length, addr = struct.unpack('<BH', view.tobytes())
+                # exclude empty elements of string arrays
+                if not (length==0 and addr==0):
+                    string_list.append((view, addr, self._retrieve(length, addr)))
             except KeyError:
                 # string is not located in memory - FIELD or code
                 pass
-        # sort by str_ptr, largest first (maintain order of storage)
+        # sort by address, largest first (maintain order of storage)
         string_list.sort(key=itemgetter(1), reverse=True)
         # clear the string buffer and re-store all referenced strings
         self.clear()
-        for item in string_list:
+        for view, _, string in string_list:
             # re-allocate string space
-            item[0][:] = struct.pack('<BH', *self.store(item[2]))
+            # update the original pointers supplied (these are memoryviews)
+            view[:] = struct.pack('<BH', *self.store(string))
 
     def get_memory(self, address):
         """Retrieve data from data memory: string space """
@@ -285,11 +303,10 @@ class StringSpace(object):
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Exit temp-string context guard."""
         if self.temp != self.current:
-            self.delete_last()
+            self._delete_last()
 
     def next_temporary(self, args):
         """Retrieve a value from an iterator and return as Python value. Store strings in a temporary."""
-        # if allow_empty, a missing value is returned as an empty string
         with self:
             expr = next(args)
             if isinstance(expr, String):

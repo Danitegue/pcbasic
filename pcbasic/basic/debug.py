@@ -135,6 +135,8 @@ class BaseDebugger(object):
             (0x70, 'EXCEPTION\n'),
             (0x17, 'version   '),
             (0x1f, __version__),
+            (0x17, '\npython    '),
+            (0x1f, platform.python_version()),
             (0x17, '\nplatform  '),
             (0x1f, platform.platform()),
             (0x17, '\nstatement '),
@@ -185,7 +187,7 @@ class BaseDebugger(object):
         # show message on screen
         for attr, text in message:
             screen.set_attr(attr)
-            screen.write(text)
+            screen.write(text.replace('\n', '\r'))
         # write crash log
         with logfile as f:
             f.write('\n'.join(crashlog))

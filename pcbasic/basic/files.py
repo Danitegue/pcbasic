@@ -221,6 +221,11 @@ class Files(object):
     def open(self, number, description, filetype, mode='I', access='R', lock='',
                   reclen=128, seg=0, offset=0, length=0):
         """Open a file on a device specified by description."""
+        loadinfo = 'files.py, open, loading file:'+ str(description) + ' as file number' + str(number)
+        print loadinfo
+        logging.info(loadinfo)
+        if description in ['da_lo.rtn'] or 'dcf140' in description:
+            print 'Test'
         if (not description) or (number < 0) or (number > self.max_files):
             # bad file number; also for name='', for some reason
             raise error.RunError(error.BAD_FILE_NUMBER)

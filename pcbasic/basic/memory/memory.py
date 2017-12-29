@@ -132,7 +132,7 @@ class DataSegment(object):
 
     def clear(self, preserve_common, preserve_all, preserve_deftype):
         """Reset and clear variables, arrays, common definitions and functions."""
-        print '\memory\memory.py, Reset and clear variables: preserve_common=', preserve_common, ', preserve_all=', preserve_all, ', preserve_deftype=',preserve_deftype
+        print '\memory\memory.py, clear, Reset and clear variables; preserve_common=', preserve_common, ', preserve_all=', preserve_all, ', preserve_deftype=',preserve_deftype
         if not preserve_deftype:
             # deftype is not preserved on CHAIN with ALL, but is preserved with MERGE
             self.clear_deftype()
@@ -157,6 +157,7 @@ class DataSegment(object):
             self.arrays.clear_base()
         # release all disk buffers (FIELD)?
         self.reset_fields()
+        # Test point
 
 
     @contextmanager
@@ -205,8 +206,8 @@ class DataSegment(object):
                 #value2 =self.values.from_str_at(string_store._strings[address2], address2) Test1: it doesn't work.
                 #value2 = self.values.new_string().from_value(string_store._strings[address2]) Test2: it doesn't work.
 
-                if str(name) in ['E$','A$','NO$']:
-                    print '\memory\memory.py, _preserve_scalars, var:', str(name),' with value1:', str(value), ' to value2:', str(value2)
+                #if str(name) in ['E$']:
+                #    print '\memory\memory.py, _preserve_scalars, var:', str(name),' with value1:', str(value), ' to value2:', str(value2)
                 value=value2
             self.scalars.set(name, value)
 

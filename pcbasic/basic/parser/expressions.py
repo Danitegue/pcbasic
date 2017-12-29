@@ -50,6 +50,8 @@ class ExpressionParser(object):
         self._init_syntax()
         # callbacks must be initilised later
         self._callbacks = {}
+        self.daloloaded = False
+        self.daloloaded2 = False
 
     def _init_syntax(self):
         """Initialise function syntax tables."""
@@ -242,6 +244,7 @@ class ExpressionParser(object):
         self.__dict__.update(pickle_dict)
         self._init_syntax()
 
+
     def parse(self, ins):
         """Parse and evaluate tokenised expression."""
         stack = deque()
@@ -251,8 +254,19 @@ class ExpressionParser(object):
         # see https://en.wikipedia.org/wiki/Shunting-yard_algorithm
         d = ''
         while True:
-            if 'Merging pdhp' in str(units):
-                print 'got 17 intrusion in expressions parse line 250!'
+
+            if 'Merging da_lo.rtn' in str(units):
+               print 'Merging da_lo.rtn'
+               self.daloloaded=True
+
+
+            #if str(units) == 'deque([%[1100 17], %[6400 100]])' and self.daloloaded:
+            #    print 'main.asc 6230 YF$=RIGHT$(STR$(YE%+100),2)'
+            #    self.daloloaded2=True
+            #self.daloloaded2 = True
+            #self.daloloaded = True
+            #if self.daloloaded2:
+            #    print 'expressions.py, start of parse, units=' + str(units) + ', value of ICF$=', self._memory.scalars.get('ICF$'), ', current:', self._memory.strings.current
             last = d
             ins.skip_blank()
             d = ins.read_keyword_token()
@@ -303,8 +317,8 @@ class ExpressionParser(object):
                 error.throw_if(not name, error.STX)
                 indices = self.parse_indices(ins)
                 var_value=self._memory.get_variable(name, indices)
-                if name in ['E$','YE$']: #Get a variable value
-                    print 'expressions.py, parse, getting variable value of var ', str(name), ", value=", str(var_value), ' in units line=', str(units)
+                #if name in ['R%','ICF$']: #Get a variable value
+                #    print 'expressions.py, parse, getting variable value of var ', str(name), ", value=", str(var_value), ' in units line=', str(units), ', PPPP value of ICF$=', self._memory.scalars.get('ICF$')
                 units.append(var_value)
             elif d in self._functions:
                 units.append(self._parse_function(ins, d))
@@ -321,6 +335,8 @@ class ExpressionParser(object):
         # raises IndexError for insufficient operators
         try:
             self._drain(0, stack, units)
+            if self.daloloaded and self.daloloaded2:
+                print 'expressions.py, end of parse, units='+str(units)+ ', value of ICF$=', self._memory.scalars.get('ICF$'), ', current:', self._memory.strings.current
             return units[0]
         except IndexError:
             # empty expression is a syntax error (inside brackets)

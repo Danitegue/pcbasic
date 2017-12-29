@@ -65,6 +65,7 @@ class Interpreter(object):
     def parse(self):
         """Parse from the current pointer in current codestream."""
         while True:
+            #icfv1 = str(self._memory.scalars.get('ICF$'))
             # may raise Break
             # KEY events need to check pre-buffer, so check before draining
             self._input_methods.check_events(self._basic_events.check)
@@ -94,6 +95,9 @@ class Interpreter(object):
                 elif c != ':':
                     ins.seek(-len(c), 1)
                 self.parser.parse_statement(ins)
+                #icfv2=str(self._memory.scalars.get('ICF$'))
+                #if icfv1!=icfv2:
+                #    print 'icf changed'
             except error.RunError as e:
                 self.trap_error(e)
 

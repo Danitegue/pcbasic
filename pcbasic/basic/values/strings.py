@@ -224,31 +224,20 @@ class StringSpace(object):
         # don't store overlong strings
         if length > 255:
             raise error.RunError(error.STRING_TOO_LONG)
-<<<<<<< HEAD
         currentstart = copy.deepcopy(self.current)
-=======
         # don't store if address is provided (code or FIELD strings)
->>>>>>> rh/master
         if address is None:
             # reserve string space; collect garbage if necessary
             self._memory.check_free(length, error.OUT_OF_STRING_SPACE)
             # find new string address
-            #self.current -= length
-            #address = self.current + 1
-            self.current = self.current - length
+            self.current -= length
             address = self.current + 1
-<<<<<<< HEAD
-        # don't store empty strings
-        if length > 0:
-            logging.info('strings.py, store, self.current at start='+str(currentstart)+', storing:' + str(in_str) + ' into address:' + str(address)+ ', self.current at end='+str(self.current)+', len='+str(length))
-            # copy and convert to bytearray
-            self._strings[address] = bytearray(in_str)
-=======
             # don't store empty strings
             if length > 0:
+                logging.debug('strings.py, store, self.current at start='+str(currentstart)+', storing:' + str(in_str) + ' into address:' + str(address)+ ', self.current at end='+str(self.current)+', len='+str(length))
                 # copy and convert to bytearray
                 self._strings[address] = bytearray(in_str)
->>>>>>> rh/master
+
         return length, address
 
     def _delete_last(self):

@@ -152,6 +152,7 @@ class StringSpace(object):
         """Initialise empty string space."""
         self._memory = memory
         self._strings = {}
+        self._temp = None
         self.clear()
 
     def __str__(self):
@@ -259,14 +260,16 @@ class StringSpace(object):
         # retrieve addresses and copy strings
         string_list = []
         for view in string_ptrs:
-            try:
-                length, addr = struct.unpack('<BH', view.tobytes())
-                # exclude empty elements of string arrays
-                if not (length==0 and addr==0):
+            length, addr = struct.unpack('<BH', view.tobytes())
+            # exclude empty elements of string arrays
+            if not (length==0 and addr==0):
+                try:
                     string_list.append((view, addr, self._retrieve(length, addr)))
-            except KeyError:
-                # string is not located in memory - FIELD or code
-                pass
+                except KeyError:
+                    if addr >= self._memory.var_start():
+                        logging.error('String not found in string space when collecting garbage: %x', addr)
+                        raise
+                    # else: string is not located in memory - FIELD or code
         # sort by address, largest first (maintain order of storage)
         string_list.sort(key=itemgetter(1), reverse=True)
         # clear the string buffer and re-store all referenced strings
@@ -275,6 +278,9 @@ class StringSpace(object):
             # re-allocate string space
             # update the original pointers supplied (these are memoryviews)
             view[:] = struct.pack('<BH', *self.store(string))
+        # readdress temporary at top of string space
+        if self._temp is not None:
+            self._temp = self.current
 
     def get_memory(self, address):
         """Retrieve data from data memory: string space """
@@ -287,12 +293,13 @@ class StringSpace(object):
 
     def __enter__(self):
         """Enter temp-string context guard."""
-        self.temp = self.current
+        self._temp = self.current
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Exit temp-string context guard."""
-        if self.temp != self.current:
+        if self._temp != self.current:
             self._delete_last()
+        self._temp = None
 
     def next_temporary(self, args):
         """Retrieve a value from an iterator and return as Python value. Store strings in a temporary."""

@@ -181,11 +181,11 @@ class StringSpace(object):
     def _retrieve(self, length, address):
         """Retrieve a string by its pointer."""
         # if string length == 0, return empty string
-        if length != 0:
-            try:
-                strval=self._strings[address]
-            except KeyError:
-                logging.debug('strings.py, _retrieve, KeyError with address='+str(address)+', length='+str(length))
+        #if length != 0:
+        #    try:
+        #        strval=self._strings[address]
+        #    except KeyError:
+        #        logging.debug('strings.py, _retrieve, KeyError with address='+str(address)+', length='+str(length))
         return bytearray() if length == 0 else self._strings[address]
 
     def view(self, length, address):
@@ -238,7 +238,6 @@ class StringSpace(object):
                 logging.debug('strings.py, store, self.current at start='+str(currentstart)+', storing:' + str(in_str) + ' into address:' + str(address)+ ', self.current at end='+str(self.current)+', len='+str(length))
                 # copy and convert to bytearray
                 self._strings[address] = bytearray(in_str)
-
         return length, address
 
     def _delete_last(self):
@@ -248,7 +247,7 @@ class StringSpace(object):
             length = len(self._strings[last_address])
             self.current += length
             del self._strings[last_address]
-            logging.debug('strings.py, StringSpace.delete_last(), self.current changed to' + str(self.current))
+            logging.debug('strings.py, StringSpace.delete_last(), self.current changed to: ' + str(self.current))
         except KeyError:
             # happens if we're called before an out-of-memory exception is handled
             # and the string wasn't allocated

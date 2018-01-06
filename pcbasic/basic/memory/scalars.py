@@ -43,8 +43,10 @@ class Scalars(object):
 
     def set(self, name, value=None):
         """Assign a value to a variable."""
-        if name in ['ICF$','YF$']:
-            print 'scalars.py, set, Assigning value '+str(value)+' to var: '+str(name)+ '; ICF$='+str(self._memory.scalars.get('ICF$'))
+        #if name in ['ICF$','YF$']:
+        #    print 'scalars.py, set, Assigning value '+str(value)+' to var: '+str(name)+ '; ICF$='+str(self._memory.scalars.get('ICF$'))
+        if isinstance(value, values.String):
+            self._memory.strings.fix_temporaries()
         type_char = name[-1]
         if value is not None:
             value = values.to_type(type_char, value)

@@ -247,111 +247,93 @@ class ExpressionParser(object):
 
     def parse(self, ins):
         """Parse and evaluate tokenised expression."""
-        stack = deque()
-        units = deque()
-
-        final = True
-        # see https://en.wikipedia.org/wiki/Shunting-yard_algorithm
-        d = ''
-        while True:
-
-            if 'Merging da_lo.rtn' in str(units):
-               print 'Merging da_lo.rtn'
-               self.daloloaded=True
-
-
-            #if str(units) == 'deque([%[1100 17], %[6400 100]])' and self.daloloaded:
-            #    print 'main.asc 6230 YF$=RIGHT$(STR$(YE%+100),2)'
-            #    self.daloloaded2=True
-            #self.daloloaded2 = True
-            #self.daloloaded = True
-            #if self.daloloaded2:
-            #    print 'expressions.py, start of parse, units=' + str(units) + ', value of ICF$=', self._memory.scalars.get('ICF$'), ', current:', self._memory.strings.current
-            last = d
-            ins.skip_blank()
-            d = ins.read_keyword_token()
-            ins.seek(-len(d), 1)
-            if d == tk.NOT and not (last in op.OPERATORS or last == ''):
-                # unary NOT ends expression except after another operator or at start
-                break
-            elif d in op.OPERATORS:
-                ins.read(len(d))
-                prec = op.PRECEDENCE[d]
-                # get combined operators such as >=
-                if d in op.COMBINABLE:
-                    nxt = ins.skip_blank()
-                    if nxt in op.COMBINABLE:
-                        d += ins.read(len(nxt))
-                if last in op.OPERATORS or last == '' or d == tk.NOT:
-                    # also if last is ( but that leads to recursive call and last == ''
-                    nargs = 1
-                    # zero operands for a binary operator is always syntax error
-                    # because it will be seen as an illegal unary
-                    try:
-                        oper = op.UNARY[d]
-                    except KeyError:
-                        raise error.RunError(error.STX)
+        operations = deque()
+        with self._memory.get_stack() as units:
+            final = True
+            # see https://en.wikipedia.org/wiki/Shunting-yard_algorithm
+            d = ''
+            while True:
+                last = d
+                ins.skip_blank()
+                d = ins.read_keyword_token()
+                ins.seek(-len(d), 1)
+                if d == tk.NOT and not (last in op.OPERATORS or last == ''):
+                    # unary NOT ends expression except after another operator or at start
+                    break
+                elif d in op.OPERATORS:
+                    ins.read(len(d))
+                    prec = op.PRECEDENCE[d]
+                    # get combined operators such as >=
+                    if d in op.COMBINABLE:
+                        nxt = ins.skip_blank()
+                        if nxt in op.COMBINABLE:
+                            d += ins.read(len(nxt))
+                    if last in op.OPERATORS or last == '' or d == tk.NOT:
+                        # also if last is ( but that leads to recursive call and last == ''
+                        nargs = 1
+                        # zero operands for a binary operator is always syntax error
+                        # because it will be seen as an illegal unary
+                        try:
+                            oper = op.UNARY[d]
+                        except KeyError:
+                            raise error.RunError(error.STX)
+                    else:
+                        nargs = 2
+                        try:
+                            oper = op.BINARY[d]
+                        except KeyError:
+                            # illegal combined ops like == raise syntax error here
+                            raise error.RunError(error.STX)
+                        self._drain(prec, operations, units)
+                    operations.append((oper, nargs, prec))
+                elif not (last in op.OPERATORS or last == ''):
+                    # repeated unit ends expression
+                    # repeated literals or variables or non-keywords like 'AS'
+                    break
+                elif d == '(':
+                    ins.read(len(d))
+                    # we need to create a new object or we'll overwrite our own stacks
+                    # this will not be needed if we localise stacks in the expression parser
+                    # either a separate class of just as local variables
+                    units.append(self.parse(ins))
+                    ins.require_read((')',))
+                elif d and d in string.ascii_letters:
+                    name = ins.read_name()
+                    error.throw_if(not name, error.STX)
+                    indices = self.parse_indices(ins)
+                    units.append(self._memory.get_variable(name, indices))
+                elif d in self._functions:
+                    units.append(self._parse_function(ins, d))
+                    if not isinstance(units[-1], values.String):
+                        self._memory.strings.reset_temporaries()
+                elif d in tk.END_STATEMENT:
+                    break
+                elif d in tk.END_EXPRESSION:
+                    # missing operand inside brackets or before comma is syntax error
+                    final = False
+                    break
+                elif d == '"':
+                    units.append(self.read_string_literal(ins))
                 else:
-                    nargs = 2
-                    try:
-                        oper = op.BINARY[d]
-                        self._drain(prec, stack, units)
-                    except (KeyError, IndexError):
-                        # illegal combined ops like == raise syntax error
-                        # incomplete expression also raises syntax error
-                        raise error.RunError(error.STX)
-                stack.append((oper, nargs, prec))
-            elif not (last in op.OPERATORS or last == ''):
-                # repeated unit ends expression
-                # repeated literals or variables or non-keywords like 'AS'
-                break
-            elif d == '(':
-                ins.read(len(d))
-                # we need to create a new object or we'll overwrite our own stacks
-                # this will not be needed if we localise stacks in the expression parser
-                # either a separate class of just as local variables
-                units.append(self.parse(ins))
-                ins.require_read((')',))
-            elif d and d in string.ascii_letters:
-                name = ins.read_name()
-                error.throw_if(not name, error.STX)
-                indices = self.parse_indices(ins)
-                var_value=self._memory.get_variable(name, indices)
-                #if name in ['R%','ICF$']: #Get a variable value
-                #    print 'expressions.py, parse, getting variable value of var ', str(name), ", value=", str(var_value), ' in units line=', str(units), ', PPPP value of ICF$=', self._memory.scalars.get('ICF$')
-                units.append(var_value)
-            elif d in self._functions:
-                units.append(self._parse_function(ins, d))
-            elif d in tk.END_STATEMENT:
-                break
-            elif d in tk.END_EXPRESSION:
-                # missing operand inside brackets or before comma is syntax error
-                final = False
-                break
-            elif d == '"':
-                units.append(self.read_string_literal(ins))
-            else:
-                units.append(self.read_number_literal(ins))
-        # raises IndexError for insufficient operators
-        try:
-            self._drain(0, stack, units)
-            if self.daloloaded and self.daloloaded2:
-                print 'expressions.py, end of parse, units='+str(units)+ ', value of ICF$=', self._memory.scalars.get('ICF$'), ', current:', self._memory.strings.current
-            return units[0]
-        except IndexError:
-            # empty expression is a syntax error (inside brackets)
-            # or Missing Operand (in an assignment)
-            if final:
-                raise error.RunError(error.MISSING_OPERAND)
-            raise error.RunError(error.STX)
+                    units.append(self.read_number_literal(ins))
+            # raises IndexError for insufficient operators
+            try:
+                self._drain(0, operations, units)
+                return units[0]
+            except IndexError:
+                # empty expression is a syntax error (inside brackets)
+                # or Missing Operand (in an assignment)
+                if final:
+                    raise error.RunError(error.MISSING_OPERAND)
+                raise error.RunError(error.STX)
 
-    def _drain(self, precedence, stack, units):
+    def _drain(self, precedence, operations, units):
         """Drain evaluation stack until an operator of low precedence on top."""
-        while stack:
+        while operations:
             # this raises IndexError if there are not enough operators
-            if precedence > stack[-1][2]:
+            if precedence > operations[-1][2]:
                 break
-            oper, narity, _ = stack.pop()
+            oper, narity, _ = operations.pop()
             args = reversed([units.pop() for _ in range(narity)])
             units.append(oper(*args))
 

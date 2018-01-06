@@ -231,7 +231,9 @@ class StringSpace(object):
             if check_free:
                 self._memory.check_free(length, error.OUT_OF_STRING_SPACE)
             # find new string address
-            self.current -= length
+            #self.current -= length
+            #address = self.current + 1
+            self.current = self.current - length
             address = self.current + 1
             # don't store empty strings
             if length > 0:

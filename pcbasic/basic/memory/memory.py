@@ -139,8 +139,8 @@ class DataSegment(object):
     def defstr_(self, args):
         """Set default string variables."""
         self.deftype_(values.STR, args)
-		
-	
+
+
     def clear(self, preserve_base, preserve_deftype):
         """Reset and clear variables, type definitions, array base and fields."""
         if not preserve_deftype:

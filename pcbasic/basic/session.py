@@ -95,7 +95,7 @@ class Session(object):
         bytecode = codestream.TokenisedStream(self.memory.code_start)
         self.program = program.Program(
                 self.tokeniser, self.lister, max_list_line, allow_protect,
-                allow_code_poke, self.memory.code_start, bytecode)
+                allow_code_poke, self.memory, bytecode)
         # register all data segment users
         self.memory.set_buffers(self.program)
         ######################################################################
@@ -265,6 +265,7 @@ class Session(object):
         """Set a variable in memory."""
         if isinstance(name, unicode):
             name = name.encode('ascii')
+        name = name.upper()
         if isinstance(value, unicode):
             value = self.codepage.str_from_unicode(value)
         if '(' in name:
@@ -277,6 +278,7 @@ class Session(object):
         """Get a variable in memory."""
         if isinstance(name, unicode):
             name = name.encode('ascii')
+        name = name.upper()
         if '(' in name:
             name = name.split('(', 1)[0]
             return self.arrays.to_list(name)

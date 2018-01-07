@@ -19,8 +19,9 @@ class Program(object):
     """BASIC program."""
 
     def __init__(self, tokeniser, lister, max_list_line,
-                allow_protect, allow_code_poke, address, bytecode):
+                allow_protect, allow_code_poke, memory, bytecode):
         """Initialise program."""
+        self._memory = memory
         # program bytecode buffer
         self.bytecode = bytecode
         self.erase()
@@ -28,7 +29,7 @@ class Program(object):
         self.allow_protect = allow_protect
         self.allow_code_poke = allow_code_poke
         # to be set when file memory is initialised
-        self.code_start = address
+        self.code_start = memory.code_start
         # for detokenise_line()
         self.tokeniser = tokeniser
         self.lister = lister
@@ -49,6 +50,7 @@ class Program(object):
     def truncate(self, rest=''):
         """Write bytecode and cut the program of beyond the current position."""
         self.bytecode.write(rest if rest else '\0\0\0')
+        self.bytecode.truncate()
         # cut off at current position
         self.code_size = self.bytecode.tell()
 
@@ -151,6 +153,10 @@ class Program(object):
             # set offsets
             linebuf.seek(3) # pass \x00\xC0\xDE
             length = len(linebuf.getvalue())
+            # check for free memory
+            # variables are cleared upon program code storage
+            if self.code_start + 1 + pos + length > self._memory.stack_start():
+                raise error.RunError(error.OUT_OF_MEMORY)
             self.bytecode.write(
                     struct.pack('<BH', 0, self.code_start + 1 + pos + length) +
                     linebuf.read())

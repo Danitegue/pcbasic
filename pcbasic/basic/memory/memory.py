@@ -174,7 +174,7 @@ class DataSegment(object):
                 name: self.scalars.get(name)
                 for name in preserve_sc if name in self.scalars}
         for name, value in common_scalars.iteritems():
-            if name[-1] == '$':
+            if name[-1] == values.STR:
                 length, address = self.strings.copy_to(string_store, *value.to_pointer())
                 value = self.values.new_string().from_pointer(length, address)
                 common_scalars[name] = value
@@ -183,7 +183,7 @@ class DataSegment(object):
                 name: (self.arrays.dimensions(name), bytearray(self.arrays.view_full_buffer(name)))
                 for name in preserve_ar if name in self.arrays}
         for name, value in common_arrays.iteritems():
-            if name[-1] == '$':
+            if name[-1] == values.STR:
                 dimensions, buf = value
                 for i in range(0, len(buf), 3):
                     # if the string array is not full, pointers are zero
@@ -193,6 +193,13 @@ class DataSegment(object):
                     # modify the stored bytearray
                     buf[i:i+3] = struct.pack('<BH', length, address)
         yield
+        # check if there is sufficient memory
+        scalar_size = sum(self.scalars.memory_size(name)
+                            for name in common_scalars.iterkeys())
+        array_size = sum(self.arrays.memory_size(name, val[0])
+                            for name, val in common_arrays.iteritems())
+        if self.var_start() + scalar_size + array_size > string_store.current:
+            raise error.RunError(error.OUT_OF_MEMORY)
         self.strings.rebuild(string_store)
         for name, value in common_scalars.iteritems():
             self.scalars.set(name, value)

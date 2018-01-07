@@ -245,8 +245,13 @@ class ExpressionParser(object):
         self._init_syntax()
 
 
-    def parse(self, ins):
+    def parse_expression(self,ins):
         """Parse and evaluate tokenised expression."""
+        self._memory.strings.reset_temporaries()
+        return self.parse(ins)
+
+    def parse(self, ins):
+        """Parse and evaluate tokenised (sub-)expression."""
         operations = deque()
         with self._memory.get_stack() as units:
             final = True
@@ -304,8 +309,8 @@ class ExpressionParser(object):
                     units.append(self._memory.get_variable(name, indices))
                 elif d in self._functions:
                     units.append(self._parse_function(ins, d))
-                    if not isinstance(units[-1], values.String):
-                        self._memory.strings.reset_temporaries()
+                    #if not isinstance(units[-1], values.String):
+                    #    self._memory.strings.reset_temporaries()
                 elif d in tk.END_STATEMENT:
                     break
                 elif d in tk.END_EXPRESSION:

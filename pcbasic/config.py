@@ -507,6 +507,7 @@ class Settings(object):
             'peek_values': peek_values,
             'extension': self.get('extension'),
             'catch_exceptions': 'none' if self.get('convert') else self.get('catch-exceptions'),
+            'update_jumpcodes': not self.get('convert'),
         }
 
     def get_video_parameters(self):

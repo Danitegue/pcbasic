@@ -127,8 +127,6 @@ def convert(settings):
             session.execute('SAVE "%s"' % name_out)
         else:
             session.execute('SAVE "%s",%s' % (name_out, mode))
-        #session.load_program(name_in, rebuild_dict=False)
-        #session.save_program(name_out, filetype=mode)
     except basic.RunError as e:
         logging.error(e.message)
 

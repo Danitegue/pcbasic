@@ -58,7 +58,7 @@ class Session(object):
             print_trigger='close', serial_buffer_size=128,
             utf8=False, universal=True, stdio=True,
             ignore_caps=True, ctrl_c_is_break=True,
-            max_list_line=65535, allow_protect=False,
+            max_list_line=65535, allow_protect=False, update_jumpcodes=True,
             allow_code_poke=False, max_memory=65534,
             max_reclen=128, max_files=3, reserved_memory=3429,
             temp_dir=u'', extension=None,
@@ -99,7 +99,7 @@ class Session(object):
         bytecode = codestream.TokenisedStream(self.memory.code_start)
         self.program = program.Program(
                 self.tokeniser, self.lister, max_list_line, allow_protect,
-                allow_code_poke, self.memory, bytecode)
+                allow_code_poke, self.memory, bytecode, update_jumpcodes)
         # register all data segment users
         self.memory.set_buffers(self.program)
         ######################################################################

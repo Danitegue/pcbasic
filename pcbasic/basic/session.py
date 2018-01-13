@@ -237,7 +237,7 @@ class Session(object):
         self.input_redirection.attach(self.queues.inputs)
         return self
 
-    def bind(self, external_name, internal_name=None):
+    def bind_file(self, external_name, internal_name=None):
         """Assign a BASIC file name to a file name or handle, if it exists."""
         if not internal_name:
             internal_name = bytes(external_name)
@@ -499,7 +499,7 @@ class Session(object):
             # and deletes the program currently in memory
             raise error.RunError(error.INTERNAL_ERROR)
         with self.files.open(
-                self.files.bind(self._term_program),
+                self.files.bind_file(self._term_program),
                 filetype='ABP', mode='I') as progfile:
             self.program.load(progfile)
         self.interpreter.error_handle_mode = False

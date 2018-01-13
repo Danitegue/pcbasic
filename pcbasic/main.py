@@ -120,9 +120,9 @@ def convert(settings):
     mode, name_in, name_out = settings.get_converter_parameters()
     session = basic.Session(**settings.get_session_parameters())
     try:
-        name_in = session.bind(name_in or io.BytesIO(sys.stdin.read()))
+        name_in = session.bind_file(name_in or io.BytesIO(sys.stdin.read()))
         session.execute('LOAD "%s"' % name_in)
-        name_out = session.bind(name_out or sys.stdout)
+        name_out = session.bind_file(name_out or sys.stdout)
         if mode == 'B':
             session.execute('SAVE "%s"' % name_out)
         else:
@@ -165,7 +165,7 @@ def run_session(iface=None, resume=False, state_file=None, wait=False,
             session = basic.Session(iface, **session_params)
         try:
             if prog:
-                session.execute('LOAD "%s"' % session.bind(prog))
+                session.execute('LOAD "%s"' % session.bind_file(prog))
             for cmd in commands:
                 session.execute(cmd)
             session.interact()

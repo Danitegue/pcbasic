@@ -40,6 +40,7 @@ class Files(object):
         self.max_files = max_files
         self.max_reclen = max_reclen
         self.devices = devices
+        self._bound_files = {}
 
     def close(self, num):
         """Close a numbered file."""
@@ -221,6 +222,13 @@ class Files(object):
     def open(self, number, description, filetype, mode='I', access='R', lock='',
                   reclen=128, seg=0, offset=0, length=0):
         """Open a file on a device specified by description."""
+        try:
+            bound = self._bound_files[description]
+            if isinstance(bound, basestring):
+                bound = open(bound, self.devices.internal_disk.access_modes[mode])
+            return self.devices.internal_disk.create_file_object(bound, filetype, mode)
+        except KeyError:
+            pass
         if (not description) or (number < 0) or (number > self.max_files):
             # bad file number; also for name='', for some reason
             raise error.RunError(error.BAD_FILE_NUMBER)
@@ -262,40 +270,14 @@ class Files(object):
             self.files[number] = new_file
         return new_file
 
-    def open_internal(self, filespec, filetype, mode):
-        """If the specified file exists, open it; if not, try as BASIC file spec. Do not register in files dict."""
-        if not filespec:
-            return self._open_stdio(filetype, mode)
-        try:
-            # first try exact file name
-            return self.devices.internal_disk.create_file_object(
-                    open(os.path.expandvars(os.path.expanduser(filespec)),
-                         self.devices.internal_disk.access_modes[mode]),
-                    filetype, mode)
-        except EnvironmentError as e:
-            # otherwise, accept capitalised versions and default extension
-            return self.open(0, filespec, filetype, mode)
-
-    def _open_null(self, filetype, mode):
-        """Open a null file object. Do not register in files dict."""
-        return devices.TextFileBase(devices.nullstream(), filetype, mode)
-
-    def _open_stdio(self, filetype, mode):
-        """Open a file object on standard IO. Do not register in files dict."""
-        # OS-specific stdin/stdout selection
-        # no stdin/stdout access allowed on packaged apps in OSX
-        if platform.system() == b'Darwin':
-            return self._open_null(filetype, mode)
-        try:
-            if mode == 'I':
-                # use io.BytesIO buffer for seekability
-                in_buffer = io.BytesIO(sys.stdin.read())
-                return self.devices.internal_disk.create_file_object(in_buffer, filetype, mode)
-            else:
-                return self.devices.internal_disk.create_file_object(sys.stdout, filetype, mode)
-        except EnvironmentError as e:
-            logging.warning('Could not open standard I/O: %s', e)
-            return self._open_null(filetype, mode)
+    def bind(self, native_name, name):
+        """Bind a stream or native file name to file name, if it exists."""
+        if isinstance(native_name, basestring):
+            native_name = os.path.expandvars(os.path.expanduser(native_name))
+            if os.path.isfile(native_name):
+                self._bound_files[name] = native_name
+        else:
+            self._bound_files[name] = native_name
 
     def get(self, num, mode='IOAR', not_open=error.BAD_FILE_NUMBER):
         """Get the file object for a file number and check allowed mode."""
@@ -498,8 +480,6 @@ class Devices(object):
         self.utf8 = utf8
         self.universal = universal
         # disk devices
-        self.internal_disk = disk.DiskDevice(b'', None, u'',
-                        self.fields, self.locks, self.codepage, self.input_methods, self.utf8, self.universal)
         for letter in self.drive_letters:
             if not mount_dict:
                 mount_dict = {}
@@ -510,6 +490,7 @@ class Devices(object):
                 self.devices[letter + b':'] = disk.DiskDevice(letter, None, u'',
                                 self.fields, self.locks, self.codepage, self.input_methods, self.utf8, self.universal)
         self.current_device = current_device.upper()
+        self.internal_disk = self.devices['@:']
 
     def close(self):
         """Close device master files."""

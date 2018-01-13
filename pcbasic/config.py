@@ -506,7 +506,7 @@ class Settings(object):
             'reserved_memory': self.get('reserved-memory'),
             'peek_values': peek_values,
             'extension': self.get('extension'),
-            'catch_exceptions': self.get('catch-exceptions'),
+            'catch_exceptions': 'none' if self.get('convert') else self.get('catch-exceptions'),
         }
 
     def get_video_parameters(self):

@@ -237,17 +237,12 @@ class Session(object):
         self.input_redirection.attach(self.queues.inputs)
         return self
 
-    def load_program(self, prog, rebuild_dict=True):
-        """Load a program from native or BASIC file."""
-        with self._handle_exceptions():
-            with self.files.open_internal(prog, filetype='ABP', mode='I') as progfile:
-                self.program.load(progfile, rebuild_dict=rebuild_dict)
-
-    def save_program(self, prog, filetype):
-        """Save a program to native or BASIC file."""
-        with self._handle_exceptions():
-            with self.files.open_internal(prog, filetype=filetype, mode='O') as progfile:
-                self.program.save(progfile)
+    def bind(self, external_name, internal_name=None):
+        """Assign a BASIC file name to a file name or handle, if it exists."""
+        if not internal_name:
+            internal_name = bytes(external_name)
+        self.files.bind(external_name, internal_name)
+        return internal_name
 
     def execute(self, command):
         """Execute a BASIC statement."""
@@ -503,8 +498,9 @@ class Session(object):
             # on Tandy, raises Internal Error
             # and deletes the program currently in memory
             raise error.RunError(error.INTERNAL_ERROR)
-        with self.files.open_internal(
-                self._term_program, filetype='ABP', mode='I') as progfile:
+        with self.files.open(
+                self.files.bind(self._term_program),
+                filetype='ABP', mode='I') as progfile:
             self.program.load(progfile)
         self.interpreter.error_handle_mode = False
         self.interpreter.clear_stacks_and_pointers()

@@ -5,6 +5,7 @@ PC-BASIC - GW-BASIC/BASICA/Cartridge BASIC compatible interpreter
 This file is released under the GNU GPL version 3 or later.
 """
 
+import io
 import sys
 import locale
 import logging
@@ -119,8 +120,15 @@ def convert(settings):
     mode, name_in, name_out = settings.get_converter_parameters()
     session = basic.Session(**settings.get_session_parameters())
     try:
-        session.load_program(name_in, rebuild_dict=False)
-        session.save_program(name_out, filetype=mode)
+        name_in = session.bind(name_in or io.BytesIO(sys.stdin.read()))
+        session.execute('LOAD "%s"' % name_in)
+        name_out = session.bind(name_out or sys.stdout)
+        if mode == 'B':
+            session.execute('SAVE "%s"' % name_out)
+        else:
+            session.execute('SAVE "%s",%s' % (name_out, mode))
+        #session.load_program(name_in, rebuild_dict=False)
+        #session.save_program(name_out, filetype=mode)
     except basic.RunError as e:
         logging.error(e.message)
 
@@ -159,7 +167,7 @@ def run_session(iface=None, resume=False, state_file=None, wait=False,
             session = basic.Session(iface, **session_params)
         try:
             if prog:
-                session.load_program(prog)
+                session.execute('LOAD "%s"' % session.bind(prog))
             for cmd in commands:
                 session.execute(cmd)
             session.interact()

@@ -14,6 +14,10 @@ from ..base import error
 from . import numbers
 import copy
 
+#This is to add to the logging info about the strings addressings (only for debugging)
+StringsLogging=False
+
+
 class String(numbers.Value):
     """String pointer."""
 
@@ -164,7 +168,8 @@ class StringSpace(object):
         self._strings.clear()
         # strings are placed at the top of string memory, just below the stack
         self.current = self._memory.stack_start()
-        logging.debug('strings.py, StringSpace.clear(), self.current changed to'+str(self.current))
+        if StringsLogging:
+            logging.debug('strings.py, StringSpace.clear(), self.current changed to'+str(self.current))
 
     def rebuild(self, stringspace):
         """Rebuild from stored copy."""
@@ -237,7 +242,8 @@ class StringSpace(object):
             address = self.current + 1
             # don't store empty strings
             if length > 0:
-                logging.debug('strings.py, store, self.current at start='+str(currentstart)+', storing:' + str(in_str) + ' into address:' + str(address)+ ', self.current at end='+str(self.current)+', len='+str(length))
+                if StringsLogging:
+                    logging.debug('strings.py, store, self.current at start='+str(currentstart)+', storing:' + str(in_str) + ' into address:' + str(address)+ ', self.current at end='+str(self.current)+', len='+str(length))
                 # copy and convert to bytearray
                 self._strings[address] = bytearray(in_str)
         return length, address
@@ -249,7 +255,8 @@ class StringSpace(object):
             length = len(self._strings[last_address])
             self.current += length
             del self._strings[last_address]
-            logging.debug('strings.py, StringSpace.delete_last(), self.current changed to: ' + str(self.current))
+            if StringsLogging:
+                logging.debug('strings.py, StringSpace.delete_last(), self.current changed to: ' + str(self.current))
         except KeyError:
             # happens if we're called before an out-of-memory exception is handled
             # and the string wasn't allocated

@@ -244,7 +244,6 @@ class ExpressionParser(object):
         self.__dict__.update(pickle_dict)
         self._init_syntax()
 
-
     def parse_expression(self,ins):
         """Parse and evaluate tokenised expression."""
         self._memory.strings.reset_temporaries()

@@ -55,7 +55,8 @@ def get_logger(logfile=None):
     else:
         h = logging.StreamHandler()
     h.setLevel(logging.INFO)
-    h.setFormatter(logging.Formatter(u'%(levelname)s: %(message)s'))
+    #h.setFormatter(logging.Formatter(u'%(levelname)s: %(message)s'))
+    h.setFormatter(logging.Formatter(u'%(asctime)s.%(msecs)04d %(levelname)s: %(message)s',datefmt=u'%H:%M:%S'))
     l.addHandler(h)
     return l
 
@@ -389,12 +390,16 @@ class Settings(object):
             loglevel = logging.INFO
         else:
             # logging setup before we import modules and may need to log errors
-            formatstr = '%(levelname)s: %(message)s'
+
+
+            #formatstr = '%(levelname)s: %(message)s'
+            formatstr ='%(asctime)s.%(msecs)04d %(levelname)s: %(message)s'
             if self.get('debug'):
                 loglevel = logging.DEBUG
             else:
                 loglevel = logging.INFO
-        logging.basicConfig(format=formatstr, level=loglevel, filename=logfile)
+        #logging.basicConfig(format=formatstr, level=loglevel, filename=logfile)
+        logging.basicConfig(format=formatstr, level=loglevel,filename=logfile, datefmt='%H:%M:%S')
 
     def _retrieve_options(self, uargv):
         """Retrieve command line and option file options."""
@@ -664,7 +669,7 @@ class Settings(object):
         args = {}
         pos = 0
         # Modified by dani on 20170719, in order to ignore the extra positional arguments that pycharm add in debug mode
-        pycharm_args = ['--multiproc','--qt-support','--client','127.0.0.1','--port','--file']
+        pycharm_args = ['--multiproc','--qt-support','--client','127.0.0.1','--port','--file','--qt-support=auto']
         for arg in argv:
             #self._logger.warning(u'Reading arg "=%s"', arg)
             if arg not in pycharm_args and 'pcbasic.py' not in arg and "PyCharm" not in arg:
@@ -705,6 +710,8 @@ class Settings(object):
                     self._logger.warning(u'Ignored unrecognised option "=%s"', value)
             else:
                 self._logger.warning(u'Ignored pycharm args "=%s"', arg)
+            if ('run' in args.keys()) and (0 in args.keys()):
+                args.pop(0)
         return args
 
     def _parse_presets(self, remaining, conf_dict):

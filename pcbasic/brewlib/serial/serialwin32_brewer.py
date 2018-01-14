@@ -139,7 +139,7 @@ class Win32Serial(SerialBase):
             self._overlappedWrite.hEvent = win32.CreateEvent(None, 0, 0, None)
 
             # # Setup a 4k buffer
-            # win32.SetupComm(self.hComPort, 4096, 4096)
+            win32.SetupComm(self.hComPort, 4096, 4096)
 
             # Save original timeout values:
             self._orgTimeouts = win32.COMMTIMEOUTS()
@@ -150,9 +150,9 @@ class Win32Serial(SerialBase):
 
             # Clear buffers:
             # Remove anything that was there
-            #win32.PurgeComm(self.hComPort,
-            #         win32.PURGE_TXCLEAR | win32.PURGE_TXABORT |
-            #         win32.PURGE_RXCLEAR | win32.PURGE_RXABORT)
+            win32.PurgeComm(self.hComPort,
+                     win32.PURGE_TXCLEAR | win32.PURGE_TXABORT |
+                     win32.PURGE_RXCLEAR | win32.PURGE_RXABORT)
 
             #-------------------------------------------------------------
             # Brewer Command Procedure - Look for the correct baudrate
@@ -165,7 +165,7 @@ class Win32Serial(SerialBase):
                     win32.PurgeComm(self.hComPort,
                              win32.PURGE_TXCLEAR | win32.PURGE_TXABORT |
                              win32.PURGE_RXCLEAR | win32.PURGE_RXABORT)
-                    time.sleep(2)
+                    time.sleep(0.5)
                     break
 
 
@@ -570,6 +570,7 @@ class Win32Serial(SerialBase):
             comstat = win32.COMSTAT()
             if not win32.ClearCommError(self.hComPort, ctypes.byref(flags), ctypes.byref(comstat)):
                 raise SerialException('call to ClearCommError failed')
+            #self.timeout = 1000
             if self.timeout == 0: #This means dont wait to get answer from the serial port
                 n = min(comstat.cbInQue, size) #Determine the number of bytes to read
                 if n > 0:
@@ -606,14 +607,16 @@ class Win32Serial(SerialBase):
                             logging.debug("Serialwin32_brewer.py read function1 has read: %s",str(read).replace('\r', '\\r').replace('\n', '\\n').replace('\x00', '\\x00'))
 
                         else:
-                            logging.warning("Error in GetOverlappedResult = %s", str(err2))
+                            logging.warning("Error in GetOverlappedResult = %s", str(hex(err2)))
                             read = bytes()
                     else:
-                        logging.warning("Error in WaitForSingleObject = %s", str(err1))
+                        logging.warning("Error in WaitForSingleObject = %s", str(hex(err1)))
                         read = bytes()
 
                 else:
                     read = bytes()
+                    #logging.debug("Serialwin32_brewer.py read function1, determined that the number of bytes that can be read are:"+str(n)+", %s",str(read).replace('\r', '\\r').replace('\n', '\\n').replace('\x00', '\\x00'))
+
             else:
                 # case self.timeout != 0
                 buf = ctypes.create_string_buffer(size)
@@ -637,10 +640,10 @@ class Win32Serial(SerialBase):
                         logging.debug("Serialwin32_brewer.py read function2 has read: %s", str(read).replace('\r', '\\r').replace('\n', '\\n').replace('\x00', '\\x00'))
 
                     else:
-                        logging.warning("Error in GetOverlappedResult = %s", str(err2))
+                        logging.warning("Error in GetOverlappedResult = %s", str(hex(err2)))
                         read = bytes()
                 else:
-                    logging.warning("Error in WaitForSingleObject = %s", str(err1))
+                    logging.warning("Error in WaitForSingleObject = %s", str(hex(err1)))
                     read = bytes()
         else:
             logging.warning("Error, Bytes to read has to be > 0.")
@@ -666,6 +669,8 @@ class Win32Serial(SerialBase):
             win32.ResetEvent(self._overlappedWrite.hEvent)
             n = win32.DWORD()
             err = win32.WriteFile(self.hComPort, data, len(data), ctypes.byref(n), self._overlappedWrite)
+            self.flush()
+            #If the function WriteFile succeeds, the return value is 1.
             if not err:
                 errcode = win32.GetLastError()
                 if errcode != win32.ERROR_IO_PENDING:
@@ -689,6 +694,7 @@ class Win32Serial(SerialBase):
             if n.value != len(data):
                 logging.warning("Error while writting, the number of bytes to send (%s) not the same of bytes sent (%s)",str(n.value), str(len(data)))
                 raise writeTimeoutError
+
             return n.value
         else:
             return 0

@@ -18,6 +18,7 @@ import platform
 import io
 import time
 
+
 # kbhit() also appears in video_none.py
 if platform.system() == 'Windows':
     from msvcrt import kbhit
@@ -145,7 +146,7 @@ class COMDevice(devices.Device):
         logging.debug("After open, stream: %s", str(self.stream))
         logging.debug("After open, comfile: %s", str(self.device_file))
 
-        time.sleep(2)
+        time.sleep(0.5)
         return f
 
     def get_params(self, param):
@@ -240,16 +241,24 @@ class COMFile(devices.CRLFTextFileBase):
         self.in_buffer = bytearray()
         self.linefeed = linefeed
         self.overflow = False
+        self.waitingforread = False
 
 
     def _check_read(self, allow_overflow=False):
         """Fill buffer at most up to buffer size; non blocking."""
-        logging.warning('Checking char waiting to be read in com buffer...')
+        if not self.waitingforread:
+            logging.debug('ports.py, COMFile, _check_read: Checking char waiting to be read in com buffer...')
+            self.waitingforread=True
         try:
+            len1 = len(self.in_buffer)
             self.in_buffer += self.fhandle.read(self.serial_in_size - len(self.in_buffer))
+            len2 = len(self.in_buffer)
         except (EnvironmentError, ValueError):
             raise error.RunError(error.DEVICE_IO_ERROR)
         # if more to read, signal an overflow
+
+        if len1!=len2:
+            self.waitingforread=False
         if len(self.in_buffer) >= self.serial_in_size and self.fhandle.read(1):
             self.overflow = True
             logging.warning('overflow in the serial buffer..., dropping waiting chars that dont fit in buffer')
@@ -280,7 +289,7 @@ class COMFile(devices.CRLFTextFileBase):
                 self.input_methods.wait()
         if len(out) > 0:
             free = self.lof()
-            logging.debug("Readed from read_raw function: %s, space in input buffer=%s", str(out), str(free))
+            logging.debug("ports.py, COMFile, read_raw, read: %s, space in input buffer=%s", str(out), str(free))
         return out
 
     def read_line(self):
@@ -310,7 +319,7 @@ class COMFile(devices.CRLFTextFileBase):
         try:
             if self.linefeed:
                 s = s.replace('\r', '\r\n')
-            logging.debug("Writting string to com port: %s", str(s))
+            logging.debug("ports.py, COMFile, write, writting string to com port: %s", str(s))
             self.fhandle.write(s)
         except (EnvironmentError, ValueError):
             raise error.RunError(error.DEVICE_IO_ERROR)
@@ -530,7 +539,7 @@ class SerialStream(object):
     def io_waiting(self):
         """ Find out whether bytes are waiting for input or output. """
         #self._check_open()
-        return self._serial.inWaiting() > 0, self._serial.outWaiting() > 0
+        return self._serial.inWaiting > 0, self._serial.outWaiting > 0
 
 
 class SocketSerialStream(SerialStream):

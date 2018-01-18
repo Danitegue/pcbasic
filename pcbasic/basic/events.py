@@ -12,7 +12,7 @@ from .base import scancode
 from .base import error
 from .base import tokens as tk
 from . import values
-
+import logging
 
 ###############################################################################
 # BASIC events
@@ -289,6 +289,7 @@ class ComHandler(EventHandler):
     def check(self):
         """Trigger COM-port events."""
         if (self.device and self.device.char_waiting()):
+            logging.debug("events.py, ComHandler, check, triggering COM port event by char_waiting.")
             self.trigger()
 
 

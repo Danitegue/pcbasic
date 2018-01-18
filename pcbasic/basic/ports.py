@@ -75,7 +75,7 @@ class COMDevice(devices.Device):
 
         devices.Device.__init__(self)
         addr, val = devices.parse_protocol_string(arg)
-        logging.debug("Initialize the COM port: %s", str(val))
+        logging.debug("ports.py, COMDevice, init, Initialize the COM port: %s", str(val))
         self.stream = None
         self.input_methods = input_methods
         self.field = field
@@ -85,11 +85,12 @@ class COMDevice(devices.Device):
                 logging.debug("Aborted, None port to attach to.")
                 #self.stream = None
                 pass
-            elif addr == 'SOCKET':
-                self.stream = SocketSerialStream(val, self.input_methods, do_open=False)
             elif addr == 'STDIO' or (not addr and val.upper() == 'STDIO'):
                 crlf = (val.upper() == 'CRLF')
                 self.stream = StdIOStream(crlf)
+            elif addr == 'SOCKET':
+                host, socket = val.split(':')
+                self.stream = SocketSerialStream(val, self.input_methods, do_open=False)
             elif addr == 'PORT':
                 # port can be e.g. /dev/ttyS1 on Linux or COM1 on Windows.
                 self.stream = SerialStream(val, self.input_methods, do_open=False)
@@ -104,17 +105,16 @@ class COMDevice(devices.Device):
         if self.stream:
             # NOTE: opening a text file automatically tries to read a byte
             self.device_file = COMFile(self.stream, self.field, self.input_methods, False, serial_in_size)
-            #logging.debug("SerialStream= %s", self.stream)
-            logging.debug("DeviceFile= %s", self.device_file)
+            logging.debug("ports.py, COMDevice, init, self.device_file= %s", self.device_file)
 
     def open(self, number, param, filetype, mode, access, lock,
                        reclen, seg, offset, length):
         """Open a file on COMn: """
         if not self.stream:
             raise error.RunError(error.DEVICE_UNAVAILABLE)
-        logging.debug("Opening a file on COM port, as file number %s", str(number))
-        logging.debug("Before open, stream: %s", str(self.stream))
-        logging.debug("Before open, comfile: %s", str(self.device_file))
+        #logging.debug("Opening a file on COM port, as file number %s", str(number))
+        #logging.debug("Before open, stream: %s", str(self.stream))
+        #logging.debug("Before open, self.device_file: %s", str(self.device_file))
 
         # PE setting not implemented
         speed, parity, bytesize, stop, rs, cs, ds, cd, lf, _ = self.get_params(param)
@@ -143,10 +143,10 @@ class COMDevice(devices.Device):
         #As nestor discovered, a temporal vable is created (f) in the COMFile open() function. As result, there was a COMFile identifier for events, and another one for accessing the port.
         self.device_file = f
 
-        logging.debug("After open, stream: %s", str(self.stream))
-        logging.debug("After open, comfile: %s", str(self.device_file))
-
-        time.sleep(0.5)
+        #logging.debug("After open, stream: %s", str(self.stream))
+        #logging.debug("After open, self.device_file: %s", str(self.device_file))
+        #logging.debug("After open, COMFile: %s", str(f))
+        #time.sleep(0.5)
         return f
 
     def get_params(self, param):
@@ -247,7 +247,7 @@ class COMFile(devices.CRLFTextFileBase):
     def _check_read(self, allow_overflow=False):
         """Fill buffer at most up to buffer size; non blocking."""
         if not self.waitingforread:
-            logging.debug('ports.py, COMFile, _check_read: Checking char waiting to be read in com buffer...')
+            #logging.debug('ports.py, COMFile, _check_read: Checking char waiting to be read in com buffer...')
             self.waitingforread=True
         try:
             len1 = len(self.in_buffer)
@@ -289,7 +289,7 @@ class COMFile(devices.CRLFTextFileBase):
                 self.input_methods.wait()
         if len(out) > 0:
             free = self.lof()
-            logging.debug("ports.py, COMFile, read_raw, read: %s, space in input buffer=%s", str(out), str(free))
+            logging.debug("ports.py, COMFile, read_raw, read: %s, space in input buffer=%s", str(out).replace('\r', '\\r').replace('\n', '\\n').replace('\x00', '\\x00'), str(free))
         return out
 
     def read_line(self):
@@ -306,12 +306,13 @@ class COMFile(devices.CRLFTextFileBase):
                 else:
                     break
             out += ''.join(c)
-        logging.debug('Serial line received: %s', str(out))
+        if len(out)>0:
+            logging.debug('ports.py, COMFile, read_line, line read: %s', str(out).replace('\r', '\\r').replace('\n', '\\n').replace('\x00', '\\x00'))
         return out
 
     def write_line(self, s=''):
         """Write string or bytearray and newline to port."""
-        logging.debug("Writting line to com port: %s", str(s))
+        logging.debug("ports.py, COMFile, write_line, writting line to com port: %s", str(s))
         self.write(str(s) + '\r')
 
     def write(self, s):
@@ -319,7 +320,7 @@ class COMFile(devices.CRLFTextFileBase):
         try:
             if self.linefeed:
                 s = s.replace('\r', '\r\n')
-            logging.debug("ports.py, COMFile, write, writting string to com port: %s", str(s))
+            logging.debug("ports.py, COMFile, write, writting string to com port: %s", str(s).replace('\r', '\\r').replace('\n', '\\n').replace('\x00', '\\x00'))
             self.fhandle.write(s)
         except (EnvironmentError, ValueError):
             raise error.RunError(error.DEVICE_IO_ERROR)
@@ -445,8 +446,8 @@ class SerialStream(object):
 
     def _check_open(self):
         """Open the underlying port if necessary."""
-        if not self._serial._isOpen:
-            logging.warning('Seems that the port is not opened, oppening it')
+        if not self._serial.isOpen():
+            logging.debug('ports.py, SerialStream, _check_open, Seems that the underlyign port is not open, oppening it')
             self._serial.open()
 
     def open(self, rs=False, cs=1000, ds=1000, cd=0):
@@ -528,12 +529,14 @@ class SerialStream(object):
         # stream default is num=-1 to mean all available
         # but that's ill-defined for ports
         read_from_serial = self._serial.read(num)
+        if len(read_from_serial) > 0:
+            logging.debug("ports.py, SerialStream, read from socket: %s", str(read_from_serial).replace('\r', '\\r').replace('\n', '\\n').replace('\x00', '\\x00'))
         return read_from_serial
 
     def write(self, s):
         """Write to socket."""
         #self._check_open()
-        #logging.debug("Writting to socket: %s", str(s))
+        logging.debug("ports.py, SerialStream, writting to socket: %s", str(s).replace('\r', '\\r').replace('\n', '\\n').replace('\x00', '\\x00'))
         self._serial.write(s)
 
     def io_waiting(self):
@@ -564,7 +567,10 @@ class SocketSerialStream(SerialStream):
         self._serial._socket.setblocking(0)
         try:
             # fill buffer at most up to buffer size
-            return self._serial._socket.recv(num)
+            read_from_socket=self._serial._socket.recv(num)
+            if len(read_from_socket)>0:
+                logging.debug("ports.py, SocketSerialStream, read_from_socket: %s", str(read_from_socket))
+            return read_from_socket
         except socket.timeout:
             return ''
         except socket.error as e:

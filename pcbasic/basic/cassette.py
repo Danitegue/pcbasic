@@ -2,7 +2,7 @@
 PC-BASIC - cassette.py
 Cassette Tape Device
 
-(c) 2015, 2016 Rob Hagemans
+(c) 2015--2018 Rob Hagemans
 This file is released under the GNU GPL version 3 or later.
 """
 
@@ -36,19 +36,6 @@ class OperationNotImplemented(CassetteIOError): pass
 # Cassette device
 
 
-class DummyDeviceFile(object):
-    """CAS device-file settings (WIDTH) are ignored."""
-
-    def __init__(self):
-        """Setup the basic properties of the file."""
-        self.width = 255
-        self.col = 1
-
-    def set_width(self, width):
-        """Set file width."""
-        self.width = width
-
-
 class CASDevice(object):
     """Cassette tape device (CASn:) """
 
@@ -59,9 +46,8 @@ class CASDevice(object):
         """Initialise tape device."""
         addr, val = devices.parse_protocol_string(arg)
         ext = val.split('.')[-1].upper()
-        # we use a dummy device_file
-        # this means WIDTH and LOC on CAS1: directly are ignored
-        self.device_file = DummyDeviceFile()
+        # WIDTH and LOC on CAS1: directly are ignored
+        self.device_file = devices.DeviceSettings()
         # by default, show messages
         self.is_quiet = False
         # console for messages
@@ -80,30 +66,34 @@ class CASDevice(object):
                             val, str(e))
             self.tapestream = None
 
+    def available(self):
+        """Device is available."""
+        return self.tapestream is not None
+
     def close(self):
         """Close tape device."""
         if self.tapestream:
             self.tapestream.close_tape()
 
     def open(self, number, param, filetype, mode, access, lock,
-                   reclen, seg, offset, length):
+                   reclen, seg, offset, length, field):
         """Open a file on tape."""
         if not self.tapestream:
-            raise error.RunError(error.DEVICE_UNAVAILABLE)
+            raise error.BASICError(error.DEVICE_UNAVAILABLE)
         if self.tapestream.is_open:
-            raise error.RunError(error.FILE_ALREADY_OPEN)
+            raise error.BASICError(error.FILE_ALREADY_OPEN)
         if set(param) & self._illegal_chars:
             # Cassette BASIC throws bad file NUMBER, for some reason.
-            raise error.RunError(error.BAD_FILE_NUMBER)
+            raise error.BASICError(error.BAD_FILE_NUMBER)
         try:
             if mode == 'O':
                 self.tapestream.open_write(param, filetype, seg, offset, length)
             elif mode == 'I':
                 _, filetype, seg, offset, length = self._search(param, filetype)
             else:
-                raise error.RunError(error.BAD_FILE_MODE)
+                raise error.BASICError(error.BAD_FILE_MODE)
         except EnvironmentError:
-            raise error.RunError(error.DEVICE_IO_ERROR)
+            raise error.BASICError(error.DEVICE_IO_ERROR)
         if filetype == 'D':
             return CASTextFile(self.tapestream, filetype, mode)
         elif filetype == 'A':
@@ -133,7 +123,7 @@ class CASDevice(object):
             # we'll loop the tape for future use
             self.tapestream.wind(0)
             # timeout error to align with GW-BASIC behaviour
-            raise error.RunError(error.DEVICE_TIMEOUT)
+            raise error.BASICError(error.DEVICE_TIMEOUT)
 
     def quiet(self, is_quiet):
         """Suppress Skipped and Found messages."""
@@ -160,11 +150,11 @@ class CASTextFile(devices.TextFileBase):
 
     def lof(self):
         """LOF: illegal function call."""
-        raise error.RunError(error.IFC)
+        raise error.BASICError(error.IFC)
 
     def loc(self):
         """LOC: illegal function call."""
-        raise error.RunError(error.IFC)
+        raise error.BASICError(error.IFC)
 
     def close(self):
         """Close a file on tape."""

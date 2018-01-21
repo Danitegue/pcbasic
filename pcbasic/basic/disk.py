@@ -2,7 +2,7 @@
 PC-BASIC - disk.py
 Disk Devices
 
-(c) 2013, 2014, 2015, 2016 Rob Hagemans
+(c) 2013--2018 Rob Hagemans
 This file is released under the GNU GPL version 3 or later.
 """
 
@@ -110,7 +110,7 @@ def handle_oserror(e):
     except KeyError:
         logging.error(u'Unmapped environment exception: %d', e.errno)
         basic_err = error.DEVICE_IO_ERROR
-    raise error.RunError(basic_err)
+    raise error.BASICError(basic_err)
 
 
 ##############################################################################
@@ -212,13 +212,13 @@ def match_filename(name, defext, path, name_err, isdir):
     # LongFileName      (1) LongFileName.BAS (2) LONGFILE.BAS
     # LongFileName.bas  (1) LongFileName.bas (2) LONGFILE.BAS
     # LongFileName.     (1) LongFileName. (2) LongFileName (3) LONGFILE
-    # LongFileName..    (1) LongFileName.. (2) LONGFILE..
+    # LongFileName..    (1) LongFileName.. (2) [does not try LONGFILE.. - not allowable]
     # Long.FileName.    (1) Long.FileName. (2) LONG.FIL
     if b'.' not in name:
         name += b'.' + defext
     elif name[-1] == b'.' and b'.' not in name[:-1]:
         # ends in single dot; first try with dot
-        # but if it doesn't exist, base everything of dotless name
+        # but if it doesn't exist, base everything off dotless name
         if istype(path, name, isdir):
             return name
         name = name[:-1]
@@ -229,7 +229,7 @@ def match_filename(name, defext, path, name_err, isdir):
     trunk, ext = split_dosname(name)
     # enforce allowable characters
     if (set(trunk) | set(ext)) - allowable_chars:
-        raise error.RunError(error.BAD_FILE_NAME)
+        raise error.BASICError(error.BAD_FILE_NAME)
     dosname = join_dosname(trunk, ext)
     fullname = match_dosname(dosname, path, isdir)
     if fullname:
@@ -239,7 +239,7 @@ def match_filename(name, defext, path, name_err, isdir):
         # create a new filename
         return dosname
     else:
-        raise error.RunError(name_err)
+        raise error.BASICError(name_err)
 
 def match_wildcard(name, mask):
     """Whether filename name matches DOS wildcard mask."""
@@ -284,7 +284,7 @@ class DiskDevice(object):
     # posix access modes for BASIC ACCESS mode for RANDOM files only
     access_access = {b'R': b'rb', b'W': b'wb', b'RW': b'r+b'}
 
-    def __init__(self, letter, path, cwd, fields, locks, codepage, input_methods, utf8, universal):
+    def __init__(self, letter, path, cwd, locks, codepage, input_methods, utf8, universal):
         """Initialise a disk device."""
         self.letter = letter
         # mount root
@@ -294,7 +294,6 @@ class DiskDevice(object):
         # this is a DOS relative path, no drive letter; including leading \\
         # stored with os.sep but given using backslash separators
         self.cwd = os.path.join(*cwd.split(u'\\'))
-        self.fields = fields
         self.locks = locks
         # code page for file system names and text file conversion
         self.codepage = codepage
@@ -308,6 +307,10 @@ class DiskDevice(object):
         """Close disk device."""
         pass
 
+    def available(self):
+        """Device is available."""
+        return True
+
     def create_file_object(self, fhandle, filetype, mode, name=b'', number=0,
                            access=b'RW', lock=b'', field=None, reclen=128,
                            seg=0, offset=0, length=0):
@@ -320,7 +323,7 @@ class DiskDevice(object):
             try:
                 filetype_found = devices.magic_to_type[first]
                 if filetype_found not in filetype:
-                    raise error.RunError(error.BAD_FILE_MODE)
+                    raise error.BASICError(error.BAD_FILE_MODE)
                 filetype = filetype_found
             except KeyError:
                 filetype = b'A'
@@ -346,11 +349,11 @@ class DiskDevice(object):
             raise ValueError(msg)
 
     def open(self, number, filespec, filetype, mode, access, lock,
-                   reclen, seg, offset, length):
+                   reclen, seg, offset, length, field):
         """Open a file on a disk drive."""
         if not self.path:
             # undefined disk drive: path not found
-            raise error.RunError(error.PATH_NOT_FOUND)
+            raise error.BASICError(error.PATH_NOT_FOUND)
         # set default extension for programs
         if set(filetype).intersection(set(b'MPBA')):
             defext = b'BAS'
@@ -373,7 +376,6 @@ class DiskDevice(object):
             # open the underlying stream
             fhandle = self._open_stream(name, mode, access)
             # apply the BASIC file wrapper
-            field = self.fields[number] if number else None
             f = self.create_file_object(fhandle, filetype, mode, name, number,
                     access, lock, field, reclen,
                     seg, offset, length)
@@ -416,7 +418,7 @@ class DiskDevice(object):
             handle_oserror(e)
         except TypeError:
             # bad file number, which is what GW throws for open chr$(0)
-            raise error.RunError(error.BAD_FILE_NUMBER)
+            raise error.BASICError(error.BAD_FILE_NUMBER)
 
     def _native_path_elements(self, path_without_drive, path_err, join_name=False):
         """Return elements of the native path for a given BASIC path."""
@@ -424,10 +426,10 @@ class DiskDevice(object):
                 bytes(path_without_drive), box_protect=False)
         if u'/' in path_without_drive:
             # bad file number - this is what GW produces here
-            raise error.RunError(error.BAD_FILE_NUMBER)
+            raise error.BASICError(error.BAD_FILE_NUMBER)
         if not self.path:
             # this drive letter is not available (not mounted)
-            raise error.RunError(error.PATH_NOT_FOUND)
+            raise error.BASICError(error.PATH_NOT_FOUND)
         # get path below drive letter
         if path_without_drive and path_without_drive[0] == u'\\':
             # absolute path specified
@@ -508,10 +510,10 @@ class DiskDevice(object):
         # GW-BASIC sometimes allows leading or trailing slashes
         # and then does weird things I don't understand.
         if b'/' in bytes(pathmask):
-            raise error.RunError(error.FILE_NOT_FOUND)
+            raise error.BASICError(error.FILE_NOT_FOUND)
         if not self.path:
             # undefined disk drive: file not found
-            raise error.RunError(error.FILE_NOT_FOUND)
+            raise error.BASICError(error.FILE_NOT_FOUND)
         drivepath, relpath, mask = self._native_path_elements(pathmask, path_err=error.FILE_NOT_FOUND)
         path = os.path.join(drivepath, relpath)
         mask = mask.upper() or b'*.*'
@@ -532,7 +534,7 @@ class DiskDevice(object):
             dirs = filter_names(path, dirs + [b'.', b'..'], mask)
             fils = filter_names(path, fils, mask)
         if not dirs and not fils:
-            raise error.RunError(error.FILE_NOT_FOUND)
+            raise error.BASICError(error.FILE_NOT_FOUND)
         # format and print contents
         output = ([join_dosname(t, e, padding=True) + b'<DIR>' for t, e in dirs] +
                   [join_dosname(t, e, padding=True) + b'     ' for t, e in fils])
@@ -561,7 +563,7 @@ class DiskDevice(object):
         for f in self.locks.open_files.values():
             try:
                 if path == f.name:
-                    raise error.RunError(error.FILE_ALREADY_OPEN)
+                    raise error.BASICError(error.FILE_ALREADY_OPEN)
             except AttributeError as e:
                 # only disk files have a name, so ignore
                 pass
@@ -600,7 +602,7 @@ class Locks(object):
                     (lock_type == b'SHARED' and not f.lock_type) or
                     # LOCK READ or LOCK WRITE: accept base on ACCESS of open file
                     (lock_type in f.access) or (f.lock_type in access)):
-                raise error.RunError(error.PERMISSION_DENIED)
+                raise error.BASICError(error.PERMISSION_DENIED)
         self._locks[number] = name
 
     def release(self, number):
@@ -654,7 +656,7 @@ class BinaryFile(devices.RawFile):
                     self.seg, self.offset, self.length = struct.unpack(b'<HHH', header)
                 else:
                     # truncated header
-                    raise error.RunError(error.BAD_FILE_MODE)
+                    raise error.BASICError(error.BAD_FILE_MODE)
 
     def close(self):
         """Write EOF and close program file."""
@@ -666,7 +668,45 @@ class BinaryFile(devices.RawFile):
             self.locks.close_file(self.number)
 
 
-class RandomFile(devices.CRLFTextFileBase):
+class CRLFTextFileBase(devices.TextFileBase):
+    """Text file with CRLF line endings, on disk device or field buffer."""
+
+    def read(self, num=-1):
+        """Read num characters, replacing CR LF with CR."""
+        s = ''
+        while len(s) < num:
+            c = self.read_raw(1)
+            if not c:
+                break
+            s += c
+            # report CRLF as CR
+            # but LFCR, LFCRLF, LFCRLFCR etc pass unmodified
+            if (c == '\r' and self.last != '\n') and self.next_char == '\n':
+                last, char = self.last, self.char
+                self.read_raw(1)
+                self.last, self.char = last, char
+        return s
+
+    def read_line(self):
+        """Read line from text file, break on CR or CRLF (not LF)."""
+        s = ''
+        while not self._check_long_line(s):
+            c = self.read(1)
+            if not c or (c == '\r' and self.last != '\n'):
+                # break on CR, CRLF but allow LF, LFCR to pass
+                break
+            else:
+                s += c
+        if not c and not s:
+            return None
+        return s
+
+    def write_line(self, s=''):
+        """Write string or bytearray and newline to file."""
+        self.write(str(s) + '\r\n')
+
+
+class RandomFile(CRLFTextFileBase):
     """Random-access file on disk device."""
 
     def __init__(self, output_stream, number, name,
@@ -677,8 +717,8 @@ class RandomFile(devices.CRLFTextFileBase):
         # touched until PUT or GET.
         self.reclen = reclen
         # replace with empty field if already exists
-        self.field = field
-        devices.CRLFTextFileBase.__init__(self, ByteStream(self.field.buffer), b'D', b'R')
+        self._field = field
+        CRLFTextFileBase.__init__(self, ByteStream(self._field.buffer), b'D', b'R')
         self.operating_mode = b'I'
         # note that for random files, output_stream must be a seekable stream.
         self.output_stream = output_stream
@@ -707,13 +747,13 @@ class RandomFile(devices.CRLFTextFileBase):
         write = self.operating_mode == b'O'
         # FIELD overflow happens if last byte in record has been read or written
         if self.fhandle.tell() > self.reclen + write - 1:
-            raise error.RunError(error.FIELD_OVERFLOW)
+            raise error.BASICError(error.FIELD_OVERFLOW)
 
     def read_raw(self, num=-1):
         """Read num characters from the field."""
         # switch to reading mode and fix readahead buffer
         self.switch_mode('I')
-        s = devices.CRLFTextFileBase.read_raw(self, num)
+        s = CRLFTextFileBase.read_raw(self, num)
         self._check_overflow()
         return s
 
@@ -721,12 +761,12 @@ class RandomFile(devices.CRLFTextFileBase):
         """Write the string s to the field, taking care of width settings."""
         # switch to writing mode and fix readahead buffer
         self.switch_mode(b'O')
-        devices.CRLFTextFileBase.write(self, s, can_break)
+        CRLFTextFileBase.write(self, s, can_break)
         self._check_overflow()
 
     def close(self):
         """Close random-access file."""
-        devices.CRLFTextFileBase.close(self)
+        CRLFTextFileBase.close(self)
         self.output_stream.close()
         if self.locks is not None:
             self.locks.release(self.number)
@@ -739,7 +779,7 @@ class RandomFile(devices.CRLFTextFileBase):
         else:
             contents = self.output_stream.read(self.reclen)
         # take contents and pad with NULL to required size
-        self.field.buffer[:] = contents + b'\0' * (self.reclen - len(contents))
+        self._field.buffer[:] = contents + b'\0' * (self.reclen - len(contents))
         # reset field text file loc
         self.fhandle.seek(0)
         self.recpos += 1
@@ -751,7 +791,7 @@ class RandomFile(devices.CRLFTextFileBase):
             self.output_stream.seek(0, 2)
             numrecs = self.recpos-current_length
             self.output_stream.write(b'\0' * numrecs * self.reclen)
-        self.output_stream.write(self.field.buffer)
+        self.output_stream.write(self._field.buffer)
         self.recpos += 1
 
     def set_pos(self, newpos):
@@ -783,7 +823,7 @@ class RandomFile(devices.CRLFTextFileBase):
             if (stop_1 is None and start_1 is None
                         or (start >= start_1 and start <= stop_1)
                         or (stop >= start_1 and stop <= stop_1)):
-                raise error.RunError(error.PERMISSION_DENIED)
+                raise error.BASICError(error.PERMISSION_DENIED)
         self.lock_list.add((start, stop))
 
     def unlock(self, start, stop):
@@ -792,17 +832,17 @@ class RandomFile(devices.CRLFTextFileBase):
         try:
             self.lock_list.remove((start, stop))
         except KeyError:
-            raise error.RunError(error.PERMISSION_DENIED)
+            raise error.BASICError(error.PERMISSION_DENIED)
 
 
-class TextFile(devices.CRLFTextFileBase):
+class TextFile(CRLFTextFileBase):
     """Text file on disk device."""
 
     def __init__(self, fhandle, filetype, number, name,
                  mode=b'A', access=b'RW', lock=b'',
                  codepage=None, universal=False, split_long_lines=True, locks=None):
         """Initialise text file object."""
-        devices.CRLFTextFileBase.__init__(self, fhandle, filetype, mode,
+        CRLFTextFileBase.__init__(self, fhandle, filetype, mode,
                                           b'', split_long_lines)
         self.lock_list = set()
         self.lock_type = lock
@@ -826,7 +866,7 @@ class TextFile(devices.CRLFTextFileBase):
         if self.mode in (b'O', b'A') and self.codepage is None:
             # write EOF char
             self.fhandle.write(b'\x1a')
-        devices.CRLFTextFileBase.close(self)
+        CRLFTextFileBase.close(self)
         if self.locks is not None:
             self.locks.release(self.number)
             self.locks.close_file(self.number)
@@ -850,13 +890,13 @@ class TextFile(devices.CRLFTextFileBase):
         """Write to file in normal or UTF-8 mode."""
         if self.codepage is not None:
             s = (self.codepage.str_to_unicode(s).encode(b'utf-8', b'replace'))
-        devices.CRLFTextFileBase.write(self, s + '\r\n')
+        CRLFTextFileBase.write(self, s + '\r\n')
 
     def write(self, s, can_break=True):
         """Write to file in normal or UTF-8 mode."""
         if self.codepage is not None:
             s = (self.codepage.str_to_unicode(s).encode(b'utf-8', b'replace'))
-        devices.CRLFTextFileBase.write(self, s, can_break)
+        CRLFTextFileBase.write(self, s, can_break)
 
     def _read_line_universal(self):
         """Read line from ascii program file with universal newlines."""
@@ -888,7 +928,7 @@ class TextFile(devices.CRLFTextFileBase):
     def read_line(self):
         """Read line from text file."""
         if not self.universal:
-            s = devices.CRLFTextFileBase.read_line(self)
+            s = CRLFTextFileBase.read_line(self)
         else:
             s = self._read_line_universal()
         if self.codepage is not None and s is not None:
@@ -898,7 +938,7 @@ class TextFile(devices.CRLFTextFileBase):
     def lock(self, start, stop):
         """Lock the file."""
         if set.union(*(f.lock_list for f in self.locks.list(self.name))):
-            raise error.RunError(error.PERMISSION_DENIED)
+            raise error.BASICError(error.PERMISSION_DENIED)
         self.lock_list.add(True)
 
     def unlock(self, start, stop):
@@ -906,4 +946,4 @@ class TextFile(devices.CRLFTextFileBase):
         try:
             self.lock_list.remove(True)
         except KeyError:
-            raise error.RunError(error.PERMISSION_DENIED)
+            raise error.BASICError(error.PERMISSION_DENIED)

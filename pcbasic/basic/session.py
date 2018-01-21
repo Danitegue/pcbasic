@@ -58,7 +58,7 @@ class Session(object):
             print_trigger='close', serial_buffer_size=128,
             utf8=False, universal=True, stdio=True,
             ignore_caps=True, ctrl_c_is_break=True,
-            max_list_line=65535, allow_protect=False, update_jumpcodes=True,
+            max_list_line=65535, allow_protect=False,
             allow_code_poke=False, max_memory=65534,
             max_reclen=128, max_files=3, reserved_memory=3429,
             temp_dir=u'', extension=None,
@@ -99,7 +99,7 @@ class Session(object):
         bytecode = codestream.TokenisedStream(self.memory.code_start)
         self.program = program.Program(
                 self.tokeniser, self.lister, max_list_line, allow_protect,
-                allow_code_poke, self.memory, bytecode, update_jumpcodes)
+                allow_code_poke, self.memory, bytecode)
         # register all data segment users
         self.memory.set_buffers(self.program)
         ######################################################################
@@ -138,15 +138,15 @@ class Session(object):
         # intialise devices and files
         # DataSegment needed for COMn and disk FIELD buffers
         # InputMethods needed for wait()
-        self.devices = files.Devices(
-                self.values, self.input_methods, self.memory.fields,
-                self.screen, self.input_methods.keyboard,
+        self.files = files.Files(
+                self.values, self.memory,
+                self.input_methods, self.screen,
+                max_files, max_reclen, serial_buffer_size,
                 device_params, current_device, mount_dict,
-                print_trigger, temp_dir, serial_buffer_size,
+                print_trigger, temp_dir,
                 utf8, universal)
-        self.files = files.Files(self.values, self.devices, self.memory, max_files, max_reclen)
         # set LPT1 as target for print_screen()
-        self.screen.set_print_screen_target(self.devices.lpt1_file)
+        self.screen.set_print_screen_target(self.files.lpt1_file)
         # set up the SHELL command
         self.shell = dos.get_shell_manager(self.input_methods.keyboard, self.screen, self.codepage, shell, syntax)
         # set up environment
@@ -161,11 +161,11 @@ class Session(object):
         # initialise the editor
         self.editor = editor.Editor(
                 self.screen, self.input_methods.keyboard, self.sound,
-                self.output_redirection, self.devices.lpt1_file)
+                self.output_redirection, self.files.lpt1_file)
         ######################################################################
         # extensions
         ######################################################################
-        self.extensions = extensions.Extensions(extension, self.values)
+        self.extensions = extensions.Extensions(extension, self.values, self.codepage)
         ######################################################################
         # interpreter
         ######################################################################
@@ -176,10 +176,10 @@ class Session(object):
         # set up BASIC event handlers
         self.basic_events = events.BasicEvents(
                 self.values, self.input_methods, self.sound, self.clock,
-                self.devices, self.screen, self.program, syntax)
+                self.files, self.screen, self.program, syntax)
         # initialise the interpreter
         self.interpreter = interpreter.Interpreter(
-                self.debugger, self.input_methods, self.screen, self.devices, self.sound,
+                self.debugger, self.input_methods, self.screen, self.files, self.sound,
                 self.values, self.memory, self.scalars, self.program, self.parser, self.basic_events)
         # PLAY parser
         self.play_parser = sound.PlayParser(self.sound, self.memory, self.values)
@@ -188,7 +188,7 @@ class Session(object):
         ######################################################################
         # set up non-data segment memory
         self.all_memory = machine.Memory(
-                self.values, self.memory, self.devices, self.files,
+                self.values, self.memory, self.files,
                 self.screen, self.input_methods.keyboard, self.screen.fonts[8],
                 self.interpreter, peek_values, syntax)
         # initialise machine ports
@@ -237,12 +237,17 @@ class Session(object):
         self.input_redirection.attach(self.queues.inputs)
         return self
 
-    def bind_file(self, external_name, internal_name=None):
-        """Assign a BASIC file name to a file name or handle, if it exists."""
-        if not internal_name:
-            internal_name = bytes(external_name)
-        self.files.bind(external_name, internal_name)
-        return internal_name
+    def load_program(self, prog, rebuild_dict=True):
+        """Load a program from native or BASIC file."""
+        with self._handle_exceptions():
+            with self.files.open_internal(prog, filetype='ABP', mode='I') as progfile:
+                self.program.load(progfile, rebuild_dict=rebuild_dict)
+
+    def save_program(self, prog, filetype):
+        """Save a program to native or BASIC file."""
+        with self._handle_exceptions():
+            with self.files.open_internal(prog, filetype=filetype, mode='O') as progfile:
+                self.program.save(progfile)
 
     def execute(self, command):
         """Execute a BASIC statement."""
@@ -272,6 +277,8 @@ class Session(object):
         name = name.upper()
         if isinstance(value, unicode):
             value = self.codepage.str_from_unicode(value)
+        elif isinstance(value, bool):
+            value = -1 if value else 0
         if '(' in name:
             name = name.split('(', 1)[0]
             self.arrays.from_list(value, name)
@@ -309,7 +316,7 @@ class Session(object):
         """Close the session."""
         # close files if we opened any
         self.files.close_all()
-        self.devices.close()
+        self.files.close_devices()
 
     ###########################################################################
     # implementation
@@ -389,7 +396,7 @@ class Session(object):
         except error.Break:
             self.sound.stop_all_sound()
             self._prompt = False
-        except error.RunError as e:
+        except error.BASICError as e:
             self._handle_error(e)
             self._prompt = True
             if self._reraise:
@@ -397,7 +404,7 @@ class Session(object):
         except error.Exit:
             raise
         except Exception as e:
-            self.debugger.bluescreen(e)
+            self.debugger.blue_screen(e)
 
     def _handle_error(self, e):
         """Handle a BASIC error through error message."""
@@ -475,10 +482,6 @@ class Session(object):
         self.randomiser.clear()
         # reset stacks & pointers
         self.interpreter.clear()
-        if 'E$' in self.memory.scalars:
-            print 'session.py, _clear_all, value of E$ after function:'+str(self.memory.scalars.get('E$'))
-        if 'ICF$' in self.memory.scalars:
-            print 'session.py, _clear_all, value of ICF$ after function:'+str(self.memory.scalars.get('ICF$'))
 
     def shell_(self, args):
         """SHELL: open OS shell and optionally execute command."""
@@ -501,10 +504,9 @@ class Session(object):
         if not self._term_program:
             # on Tandy, raises Internal Error
             # and deletes the program currently in memory
-            raise error.RunError(error.INTERNAL_ERROR)
-        with self.files.open(
-                self.files.bind_file(self._term_program),
-                filetype='ABP', mode='I') as progfile:
+            raise error.BASICError(error.INTERNAL_ERROR)
+        with self.files.open_internal(
+                self._term_program, filetype='ABP', mode='I') as progfile:
             self.program.load(progfile)
         self.interpreter.error_handle_mode = False
         self.interpreter.clear_stacks_and_pointers()
@@ -548,7 +550,7 @@ class Session(object):
         from_line, = self.program.explicit_lines(from_line)
         self.program.last_stored = from_line
         if from_line is None or from_line not in self.program.line_numbers:
-            raise error.RunError(error.UNDEFINED_LINE_NUMBER)
+            raise error.BASICError(error.UNDEFINED_LINE_NUMBER)
         # throws back to direct mode
         # jump to end of direct line so execution stops
         self.interpreter.set_pointer(False)
@@ -595,10 +597,10 @@ class Session(object):
         common_all, delete_lines = next(args), next(args)
         from_line, to_line = delete_lines if delete_lines else None, None
         if to_line is not None and to_line not in self.program.line_numbers:
-            raise error.RunError(error.IFC)
+            raise error.BASICError(error.IFC)
         list(args)
         if self.program.protected and merge:
-            raise error.RunError(error.IFC)
+            raise error.BASICError(error.IFC)
         # gather COMMON declarations
         commons = self.interpreter.gather_commons()
         with self.memory.preserve_commons(commons, common_all):
@@ -677,7 +679,7 @@ class Session(object):
             self.interpreter.set_pointer(True, 0)
         else:
             if jumpnum not in self.program.line_numbers:
-                raise error.RunError(error.UNDEFINED_LINE_NUMBER)
+                raise error.BASICError(error.UNDEFINED_LINE_NUMBER)
             self.interpreter.jump(jumpnum)
 
     def end_(self, args):
@@ -725,7 +727,7 @@ class Session(object):
                 word, sep = inputstream.input_entry(name[-1], allow_past_end=True)
                 try:
                     value = self.values.from_repr(word, allow_nonnum=False, typechar=name[-1])
-                except error.RunError as e:
+                except error.BASICError as e:
                     # string entered into numeric field
                     value = None
                 var.append([name, indices])
@@ -773,15 +775,15 @@ class Session(object):
         readvar, indices = next(args)
         list(args)
         if not readvar:
-            raise error.RunError(error.STX)
+            raise error.BASICError(error.STX)
         readvar = self.memory.complete_name(readvar)
         if readvar[-1] != values.STR:
-            raise error.RunError(error.TYPE_MISMATCH)
+            raise error.BASICError(error.TYPE_MISMATCH)
         # read the input
         if finp:
             line = finp.read_line()
             if line is None:
-                raise error.RunError(error.INPUT_PAST_END)
+                raise error.BASICError(error.INPUT_PAST_END)
         else:
             self.interpreter.input_mode = True
             self.parser.redo_on_break = True
@@ -819,5 +821,5 @@ class Session(object):
             # only length-2 expressions can be assigned to KEYs over 10
             # in which case it's a key scancode definition
             if len(text) != 2:
-                raise error.RunError(error.IFC)
+                raise error.BASICError(error.IFC)
             self.basic_events.key[keynum-1].set_trigger(str(text))

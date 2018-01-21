@@ -2,7 +2,7 @@
 PC-BASIC - expressions.py
 Expression stack
 
-(c) 2013, 2014, 2015, 2016 Rob Hagemans
+(c) 2013--2018 Rob Hagemans
 This file is released under the GNU GPL version 3 or later.
 """
 
@@ -166,8 +166,8 @@ class ExpressionParser(object):
             tk.IOCTL + '$': session.files.ioctl_,
             tk.ENVIRON + '$': session.environment.environ_,
             tk.INPUT + '$': session.files.input_,
-            tk.ERDEV: session.devices.erdev_,
-            tk.ERDEV + '$': session.devices.erdev_str_,
+            tk.ERDEV: session.files.erdev_,
+            tk.ERDEV + '$': session.files.erdev_str_,
             tk.VARPTR: session.memory.varptr_,
             tk.VARPTR + '$': session.memory.varptr_str_,
             tk.SCREEN: session.screen.screen_fn_,
@@ -185,7 +185,7 @@ class ExpressionParser(object):
             tk.MKI: values.mki_,
             tk.MKS: values.mks_,
             tk.MKD: values.mkd_,
-            tk.EXTERR: session.devices.exterr_,
+            tk.EXTERR: session.files.exterr_,
             tk.DATE: session.clock.date_fn_,
             tk.TIME: session.clock.time_fn_,
             tk.PLAY: session.sound.play_fn_,
@@ -281,14 +281,14 @@ class ExpressionParser(object):
                         try:
                             oper = op.UNARY[d]
                         except KeyError:
-                            raise error.RunError(error.STX)
+                            raise error.BASICError(error.STX)
                     else:
                         nargs = 2
                         try:
                             oper = op.BINARY[d]
                         except KeyError:
                             # illegal combined ops like == raise syntax error here
-                            raise error.RunError(error.STX)
+                            raise error.BASICError(error.STX)
                         self._drain(prec, operations, units)
                     operations.append((oper, nargs, prec))
                 elif not (last in op.OPERATORS or last == ''):
@@ -329,8 +329,8 @@ class ExpressionParser(object):
                 # empty expression is a syntax error (inside brackets)
                 # or Missing Operand (in an assignment)
                 if final:
-                    raise error.RunError(error.MISSING_OPERAND)
-                raise error.RunError(error.STX)
+                    raise error.BASICError(error.MISSING_OPERAND)
+                raise error.BASICError(error.STX)
 
     def _drain(self, precedence, operations, units):
         """Drain evaluation stack until an operator of low precedence on top."""
@@ -369,7 +369,7 @@ class ExpressionParser(object):
             # we need to convert to single to ensure it is interpreted as the unsigned value
             return self._values.new_single().from_int(value)
         else:
-            raise error.RunError(error.STX)
+            raise error.BASICError(error.STX)
 
     def parse_indices(self, ins):
         """Parse array indices."""
@@ -401,7 +401,7 @@ class ExpressionParser(object):
             try:
                 parse_args = fndict[presign]
             except KeyError:
-                raise error.RunError(error.STX)
+                raise error.BASICError(error.STX)
         if token == tk.FN:
             fnname = ins.read_name()
             # must not be empty

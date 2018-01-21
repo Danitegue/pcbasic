@@ -2,7 +2,7 @@
 PC-BASIC - strings.py
 String values
 
-(c) 2013, 2014, 2015, 2016 Rob Hagemans
+(c) 2013--2018 Rob Hagemans
 This file is released under the GNU GPL version 3 or later.
 """
 
@@ -228,16 +228,14 @@ class StringSpace(object):
         length = len(in_str)
         # don't store overlong strings
         if length > 255:
-            raise error.RunError(error.STRING_TOO_LONG)
-        currentstart = copy.deepcopy(self.current)
+            raise error.BASICError(error.STRING_TOO_LONG)
         # don't store if address is provided (code or FIELD strings)
         if address is None:
             # reserve string space; collect garbage if necessary
             if check_free:
                 self._memory.check_free(length, error.OUT_OF_STRING_SPACE)
             # find new string address
-            #self.current -= length
-            #address = self.current + 1
+            currentstart=copy.deepcopy(self.current)
             self.current = self.current - length
             address = self.current + 1
             # don't store empty strings

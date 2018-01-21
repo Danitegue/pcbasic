@@ -2,7 +2,7 @@
 PC-BASIC - statements.py
 Statement parser
 
-(c) 2013, 2014, 2015, 2016 Rob Hagemans
+(c) 2013--20186 Rob Hagemans
 This file is released under the GNU GPL version 3 or later.
 """
 
@@ -297,7 +297,7 @@ class Parser(object):
             tk.WAIT: session.machine.wait_,
             tk.POKE: session.all_memory.poke_,
             tk.OUT: session.machine.out_,
-            tk.LPRINT: session.devices.lprint_,
+            tk.LPRINT: session.files.lprint_,
             tk.LLIST: session.interpreter.llist_,
             tk.WIDTH: session.files.width_,
             tk.SWAP: session.memory.swap_,
@@ -324,7 +324,7 @@ class Parser(object):
             tk.SAVE: session.save_,
             tk.COLOR: session.screen.color_,
             tk.CLS: session.screen.cls_,
-            tk.MOTOR: session.devices.motor_,
+            tk.MOTOR: session.files.motor_,
             tk.BSAVE: session.all_memory.bsave_,
             tk.BLOAD: session.all_memory.bload_,
             tk.SOUND: session.sound.sound_,
@@ -333,12 +333,12 @@ class Parser(object):
             tk.PRESET: session.screen.drawing.preset_,
             tk.SCREEN: session.screen.screen_,
             tk.LOCATE: session.screen.locate_,
-            tk.FILES: session.devices.files_,
+            tk.FILES: session.files.files_,
             tk.FIELD: session.files.field_,
-            tk.NAME: session.devices.name_,
+            tk.NAME: session.files.name_,
             tk.LSET: session.memory.lset_,
             tk.RSET: session.memory.rset_,
-            tk.KILL: session.devices.kill_,
+            tk.KILL: session.files.kill_,
             tk.CHAIN: session.chain_,
             tk.DATE: session.clock.date_,
             tk.TIME: session.clock.time_,
@@ -348,13 +348,13 @@ class Parser(object):
             tk.DRAW: session.screen.drawing.draw_,
             tk.TIMER: session.basic_events.timer_,
             tk.IOCTL: session.files.ioctl_statement_,
-            tk.CHDIR: session.devices.chdir_,
-            tk.MKDIR: session.devices.mkdir_,
-            tk.RMDIR: session.devices.rmdir_,
+            tk.CHDIR: session.files.chdir_,
+            tk.MKDIR: session.files.mkdir_,
+            tk.RMDIR: session.files.rmdir_,
             tk.SHELL: session.shell_,
             tk.ENVIRON: session.environment.environ_statement_,
             tk.WINDOW: session.screen.drawing.window_,
-            tk.LCOPY: session.devices.lcopy_,
+            tk.LCOPY: session.files.lcopy_,
             tk.PCOPY: session.screen.pcopy_,
             tk.LOCK: session.files.lock_,
             tk.UNLOCK: session.files.unlock_,
@@ -454,7 +454,7 @@ class Parser(object):
             if allow_empty:
                 ins.seek(-len(c), 1)
                 return None
-            raise error.RunError(err)
+            raise error.BASICError(err)
 
     ###########################################################################
     # no arguments
@@ -585,7 +585,7 @@ class Parser(object):
         token = ins.read_keyword_token()
         yield token
         if token not in (tk.PEN, tk.KEY, tk.TIMER, tk.PLAY, tk.COM, tk.STRIG):
-            raise error.RunError(error.STX)
+            raise error.BASICError(error.STX)
         if token != tk.PEN:
             yield self._parse_bracket(ins)
         else:
@@ -650,9 +650,9 @@ class Parser(object):
                 if not ins.skip_blank_read_if((',',)):
                     break
             else:
-                raise error.RunError(error.STX)
+                raise error.BASICError(error.STX)
             if last is None:
-                raise error.RunError(error.MISSING_OPERAND)
+                raise error.BASICError(error.MISSING_OPERAND)
             ins.require_end()
         else:
             yield self.parse_expression(ins, allow_empty=True)
@@ -766,7 +766,7 @@ class Parser(object):
         if ins.skip_blank_read_if((',',)):
             inc = self._parse_optional_jumpnum(ins)
             if inc is None:
-                raise error.RunError(error.IFC)
+                raise error.BASICError(error.IFC)
             else:
                 yield inc
         else:
@@ -812,7 +812,7 @@ class Parser(object):
                     step = self._parse_optional_jumpnum(ins)
         ins.require_end()
         if step is None:
-            raise error.RunError(error.IFC)
+            raise error.BASICError(error.IFC)
         for n in (new, old, step):
             yield n
 
@@ -888,7 +888,7 @@ class Parser(object):
                 if word is not None:
                     yield mode_dict[word]
                 else:
-                    raise error.RunError(error.STX)
+                    raise error.BASICError(error.STX)
         else:
             yield None
         # ACCESS clause
@@ -919,7 +919,7 @@ class Parser(object):
             return 'W'
         elif d == tk.READ:
             return 'RW' if ins.skip_blank_read_if((tk.WRITE,)) else 'R'
-        raise error.RunError(error.STX)
+        raise error.BASICError(error.STX)
 
     def _parse_close(self, ins):
         """Parse CLOSE syntax."""
@@ -959,7 +959,7 @@ class Parser(object):
             elif expr is not None:
                 yield None
             else:
-                raise error.RunError(error.MISSING_OPERAND)
+                raise error.BASICError(error.MISSING_OPERAND)
 
     def _parse_ioctl(self, ins):
         """Parse IOCTL syntax."""
@@ -1010,7 +1010,7 @@ class Parser(object):
             for c in self._parse_pair(ins):
                 yield c
         elif screen:
-            raise error.RunError(error.STX)
+            raise error.BASICError(error.STX)
 
     def _parse_circle(self, ins):
         """Parse CIRCLE syntax."""
@@ -1027,7 +1027,7 @@ class Parser(object):
             else:
                 break
         if last is None:
-            raise error.RunError(error.MISSING_OPERAND)
+            raise error.BASICError(error.MISSING_OPERAND)
         for _ in range(count_args, 4):
             yield None
         ins.require_end()
@@ -1044,7 +1044,7 @@ class Parser(object):
             else:
                 break
         if last is None:
-            raise error.RunError(error.MISSING_OPERAND)
+            raise error.BASICError(error.MISSING_OPERAND)
         for _ in range(count_args, 3):
             yield None
 
@@ -1092,7 +1092,7 @@ class Parser(object):
                     error.throw_if(not shape, error.STX)
                     yield None
             elif not expr:
-                raise error.RunError(error.MISSING_OPERAND)
+                raise error.BASICError(error.MISSING_OPERAND)
             else:
                 yield None
                 yield None
@@ -1140,7 +1140,7 @@ class Parser(object):
             yield exp1
             if not ins.skip_blank_read_if((',',)):
                 if not exp1:
-                    raise error.RunError(error.STX)
+                    raise error.BASICError(error.STX)
             else:
                 # set aside stack space for GW-BASIC. The default is the previous stack space size.
                 exp2 = self.parse_expression(ins, allow_empty=True)
@@ -1149,7 +1149,7 @@ class Parser(object):
                     # Tandy/PCjr: select video memory size
                     yield self.parse_expression(ins)
                 elif not exp2:
-                    raise error.RunError(error.STX)
+                    raise error.BASICError(error.STX)
         ins.require_end()
 
     def _parse_def_fn(self, ins):
@@ -1194,7 +1194,7 @@ class Parser(object):
         """Parse MID$ syntax."""
         # do not use require_read as we don't allow whitespace here
         if ins.read(1) != '(':
-            raise error.RunError(error.STX)
+            raise error.BASICError(error.STX)
         yield self._parse_variable(ins)
         ins.require_read((',',))
         yield self.parse_expression(ins)
@@ -1295,9 +1295,9 @@ class Parser(object):
                 if not ins.skip_blank_read_if((',',)):
                     break
             if last is None:
-                raise error.RunError(error.MISSING_OPERAND)
+                raise error.BASICError(error.MISSING_OPERAND)
         elif last is None:
-            raise error.RunError(error.IFC)
+            raise error.BASICError(error.IFC)
 
     def _parse_palette(self, ins):
         """Parse PALETTE syntax."""
@@ -1399,8 +1399,8 @@ class Parser(object):
                 break
         if last is None:
             if self._syntax == 'tandy' and argcount == 1:
-                raise error.RunError(error.IFC)
-            raise error.RunError(error.MISSING_OPERAND)
+                raise error.BASICError(error.IFC)
+            raise error.BASICError(error.MISSING_OPERAND)
         for _ in range(argcount, 5):
             yield None
         ins.require_end()
@@ -1437,7 +1437,7 @@ class Parser(object):
                         ins.require_end()
                         # need at least one argument after format string
                         if not has_args:
-                            raise error.RunError(error.MISSING_OPERAND)
+                            raise error.BASICError(error.MISSING_OPERAND)
                         break
                     has_args = True
                     if not ins.skip_blank_read_if((';', ',')):

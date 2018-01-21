@@ -2,7 +2,7 @@
 PC-BASIC - program.py
 Program buffer utilities
 
-(c) 2013, 2014, 2015, 2016 Rob Hagemans
+(c) 2013--2018 Rob Hagemans
 This file is released under the GNU GPL version 3 or later.
 """
 
@@ -19,8 +19,7 @@ class Program(object):
     """BASIC program."""
 
     def __init__(self, tokeniser, lister, max_list_line,
-                allow_protect, allow_code_poke, memory, bytecode,
-                update_jumpcodes):
+                allow_protect, allow_code_poke, memory, bytecode):
         """Initialise program."""
         self._memory = memory
         # program bytecode buffer
@@ -34,7 +33,6 @@ class Program(object):
         # for detokenise_line()
         self.tokeniser = tokeniser
         self.lister = lister
-        self._update_jumpcodes = update_jumpcodes
 
     def size(self):
         """Size of code space """
@@ -87,15 +85,14 @@ class Program(object):
             scanpos = self.bytecode.tell()
             offsets.append(scanpos)
         self.line_numbers[65536] = scanpos
-        if self._update_jumpcodes:
-            # rebuild offsets
-            self.bytecode.seek(0)
-            last = 0
-            for pos in offsets:
-                self.bytecode.read(1)
-                self.bytecode.write(struct.pack('<H', self.code_start + 1 + pos))
-                self.bytecode.read(pos - last - 3)
-                last = pos
+        # rebuild offsets
+        self.bytecode.seek(0)
+        last = 0
+        for pos in offsets:
+            self.bytecode.read(1)
+            self.bytecode.write(struct.pack('<H', self.code_start + 1 + pos))
+            self.bytecode.read(pos - last - 3)
+            last = pos
         # ensure program is properly sealed - last offset must be 00 00. keep, but ignore, anything after.
         self.bytecode.write('\0\0\0')
 
@@ -130,13 +127,13 @@ class Program(object):
         empty = (c in tk.END_LINE)
         # check if we start with a number
         if c in tk.NUMBER:
-            raise error.RunError(error.STX)
+            raise error.BASICError(error.STX)
         return empty, scanline
 
     def store_line(self, linebuf):
         """Store the given line buffer."""
         if self.protected:
-            raise error.RunError(error.IFC)
+            raise error.BASICError(error.IFC)
         # get the new line number
         linebuf.seek(1)
         scanline = self.lister.detokenise_line_number(linebuf)
@@ -144,7 +141,7 @@ class Program(object):
         empty = (linebuf.skip_blank_read() in tk.END_LINE)
         pos, afterpos, deleteable, beyond = self.find_pos_line_dict(scanline, scanline)
         if empty and not deleteable:
-            raise error.RunError(error.UNDEFINED_LINE_NUMBER)
+            raise error.BASICError(error.UNDEFINED_LINE_NUMBER)
         # read the remainder of the program into a buffer to be pasted back after the write
         self.bytecode.seek(afterpos)
         rest = self.bytecode.read()
@@ -159,7 +156,7 @@ class Program(object):
             # check for free memory
             # variables are cleared upon program code storage
             if self.code_start + 1 + pos + length > self._memory.stack_start():
-                raise error.RunError(error.OUT_OF_MEMORY)
+                raise error.BASICError(error.OUT_OF_MEMORY)
             self.bytecode.write(
                     struct.pack('<BH', 0, self.code_start + 1 + pos + length) +
                     linebuf.read())
@@ -192,7 +189,7 @@ class Program(object):
         startpos, afterpos, deleteable, beyond = self.find_pos_line_dict(fromline, toline)
         if not deleteable:
             # no lines selected
-            raise error.RunError(error.IFC)
+            raise error.BASICError(error.IFC)
         # do the delete
         self.bytecode.seek(afterpos)
         rest = self.bytecode.read()
@@ -205,7 +202,7 @@ class Program(object):
         """Output program line to console and position cursor."""
         if self.protected:
             screen.write(str(from_line)+'\r')
-            raise error.RunError(error.IFC)
+            raise error.BASICError(error.IFC)
         # list line
         self.bytecode.seek(self.line_numbers[from_line]+1)
         _, output, textpos = self.lister.detokenise_line(self.bytecode, bytepos)
@@ -241,7 +238,7 @@ class Program(object):
         old_to_new = {}
         for old_line in keys:
             if old_line < 65535 and new_line > 65529:
-                raise error.RunError(error.IFC)
+                raise error.BASICError(error.IFC)
             if old_line == 65536:
                 break
             old_to_new[old_line] = new_line
@@ -288,7 +285,7 @@ class Program(object):
         self.line_numbers.update(new_lines)
         return old_to_new
 
-    def load(self, g):
+    def load(self, g, rebuild_dict=True):
         """Load program from ascii, bytecode or protected stream."""
         self.erase()
         if g.filetype == 'B':
@@ -307,7 +304,7 @@ class Program(object):
         else:
             logging.debug("Incorrect file type '%s' on LOAD", g.filetype)
         # rebuild line number dict and offsets
-        if g.filetype != 'A':
+        if rebuild_dict and g.filetype != 'A':
             self.rebuild_line_dict()
         self.code_size = self.bytecode.tell()
 
@@ -324,13 +321,13 @@ class Program(object):
             else:
                 # we have read the :
                 if linebuf.skip_blank() not in tk.END_LINE:
-                    raise error.RunError(error.DIRECT_STATEMENT_IN_FILE)
+                    raise error.BASICError(error.DIRECT_STATEMENT_IN_FILE)
 
     def save(self, g):
         """Save the program to stream g in (A)scii, (B)ytecode or (P)rotected mode."""
         mode = g.filetype
         if self.protected and mode != 'P':
-            raise error.RunError(error.IFC)
+            raise error.BASICError(error.IFC)
         current = self.bytecode.tell()
         # skip first \x00 in bytecode
         self.bytecode.seek(1)
@@ -354,7 +351,7 @@ class Program(object):
         from_line, to_line = self.explicit_lines(from_line, to_line)
         if self.protected:
             # don't list protected files
-            raise error.RunError(error.IFC)
+            raise error.BASICError(error.IFC)
         # 65529 is max insertable line number for GW-BASIC 3.23.
         # however, 65530-65535 are executed if present in tokenised form.
         # in GW-BASIC, 65530 appears in LIST, 65531 and above are hidden
@@ -402,6 +399,7 @@ class Program(object):
             else:
                 self.bytecode.seek(offset)
             self.bytecode.write(chr(val))
+            self.bytecode.seek(0,2)
+            self.rebuild_line_dict()
             # restore program pointer
             self.bytecode.seek(loc)
-            self.rebuild_line_dict()

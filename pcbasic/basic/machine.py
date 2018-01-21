@@ -2,7 +2,7 @@
 PC-BASIC - machine.py
 Machine emulation and memory model
 
-(c) 2013, 2014, 2015, 2016 Rob Hagemans
+(c) 2013--2018 Rob Hagemans
 This file is released under the GNU GPL version 3 or later.
 """
 
@@ -32,8 +32,8 @@ class MachinePorts(object):
         # 3BCh - 3BFh  Used for Parallel Ports which were incorporated on to Video Cards - Doesn't support ECP addresses
         # 378h - 37Fh  Usual Address For LPT 1
         # 278h - 27Fh  Usual Address For LPT 2
-        dev = self.session.devices
-        self.lpt_device = [dev.devices['LPT1:'], dev.devices['LPT2:']]
+        dev = self.session.files
+        self.lpt_device = [dev.get_device('LPT1:'), dev.get_device('LPT2:')]
         # serial port base address:
         # http://www.petesqbsite.com/sections/tutorials/zines/qbnews/9-com_ports.txt
         #            COM1             &H3F8
@@ -41,7 +41,7 @@ class MachinePorts(object):
         #            COM3             &H3E8 (not implemented)
         #            COM4             &H2E8 (not implemented)
         self.com_base = {0x3f8: 0, 0x2f8: 1}
-        self.com_device = [dev.devices['COM1:'], dev.devices['COM2:']]
+        self.com_device = [dev.get_device('COM1:'), dev.get_device('COM2:')]
         self.com_enable_baud_write = [False, False]
         self.com_baud_divisor = [0, 0]
         self.com_break = [False, False]
@@ -50,7 +50,7 @@ class MachinePorts(object):
         """USR: get value of machine-code function; not implemented."""
         num, = args
         logging.warning('USR function not implemented.')
-        raise error.RunError(error.IFC)
+        raise error.BASICError(error.IFC)
 
     def inp_(self, args):
         """INP: get value from machine port."""
@@ -248,15 +248,14 @@ class Memory(object):
     key_buffer_offset = 30
     blink_enabled = True
 
-    def __init__(self, values, data_memory, devices, files, screen, keyboard,
+    def __init__(self, values, data_memory, files, screen, keyboard,
                 font_8, interpreter, peek_values, syntax):
         """Initialise memory."""
         self._values = values
         # data segment initialised elsewhere
         self._memory = data_memory
         # device access needed for COM and LPT ports
-        self.devices = devices
-        # for BLOAD and BSAVE
+        # files access for BLOAD and BSAVE
         self._files = files
         # screen access needed for video memory
         self.screen = screen
@@ -278,7 +277,7 @@ class Memory(object):
         addr, = args
         # no peeking the program code (or anywhere) in protected mode
         if self._memory.program.protected and not self.interpreter.run_mode:
-            raise error.RunError(error.IFC)
+            raise error.BASICError(error.IFC)
         addr = values.to_int(addr, unsigned=True)
         addr += self.segment * 0x10
         return self._values.new_integer().from_int(self._get_memory(addr))
@@ -287,7 +286,7 @@ class Memory(object):
         """POKE: Set the value at an emulated memory location."""
         addr = values.to_int(next(args), unsigned=True)
         if self._memory.program.protected and not self.interpreter.run_mode:
-            raise error.RunError(error.IFC)
+            raise error.BASICError(error.IFC)
         val, = args
         val = values.to_int(val)
         error.range_check(0, 255, val)
@@ -299,7 +298,7 @@ class Memory(object):
     def bload_(self, args):
         """BLOAD: Load a file into a block of memory."""
         if self._memory.program.protected and not self.interpreter.run_mode:
-            raise error.RunError(error.IFC)
+            raise error.BASICError(error.IFC)
         name = values.next_string(args)
         offset = next(args)
         if offset is not None:
@@ -323,7 +322,7 @@ class Memory(object):
     def bsave_(self, args):
         """BSAVE: Save a block of memory into a file."""
         if self._memory.program.protected and not self.interpreter.run_mode:
-            raise error.RunError(error.IFC)
+            raise error.BASICError(error.IFC)
         name = values.next_string(args)
         offset = values.to_int(next(args), unsigned=True)
         length = values.to_int(next(args), unsigned=True)
@@ -360,7 +359,7 @@ class Memory(object):
         addr_var = next(args)
         if self._memory.complete_name(addr_var)[-1] == values.STR:
             # type mismatch
-            raise error.RunError(error.TYPE_MISMATCH)
+            raise error.BASICError(error.TYPE_MISMATCH)
         list(args)
         logging.warning('CALL/CALLS statement not implemented')
 
@@ -533,12 +532,14 @@ class Memory(object):
         #   "(PEEK (1041) AND 16)/16" WILL PROVIDE NUMBER OF GAME PORTS INSTALLED.
         #   "(PEEK (1041) AND 192)/64" WILL PROVIDE NUMBER OF PRINTERS INSTALLED.
         elif addr == 1041:
-            return (2 * ((self.devices.devices['COM1:'].stream is not None) +
-                        (self.devices.devices['COM2:'].stream is not None)) +
-                    16 +
-                    64 * ((self.devices.devices['LPT1:'].stream is not None) +
-                        (self.devices.devices['LPT2:'].stream is not None) +
-                        (self.devices.devices['LPT3:'].stream is not None)))
+            return (
+                2 * (self._files.device_available('COM1:') +
+                    self._files.device_available('COM2:')) +
+                16 +
+                64 * (self._files.device_available('LPT1:') +
+                    self._files.device_available('LPT2:') +
+                    self._files.device_available('LPT3:'))
+            )
         # &h40:&h17 keyboard flag
         # &H80 - Insert state active
         # &H40 - CapsLock state has been toggled

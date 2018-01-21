@@ -1,10 +1,11 @@
 """
 PC-BASIC - GW-BASIC/BASICA/Cartridge BASIC compatible interpreter
 
-(c) 2013, 2014, 2015, 2016 Rob Hagemans
+(c) 2013--2018 Rob Hagemans
 This file is released under the GNU GPL version 3 or later.
 """
 
+import os
 import io
 import sys
 import locale
@@ -32,11 +33,7 @@ import datetime
 
 def main(*arguments):
     """Wrapper for run() to deal with Ctrl-C, stdio and pipes."""
-
-    import os
-
-    #BREWDIR = "c:/"
-    #NOBREW = ""
+    logging.info("Started PCBASIC session.")
     print "Started PCBASIC session at", datetime.datetime.now()
     if 'BREWDIR' in os.environ.keys():
         print "BREWDIR already exist in the enviroment variables, with value:", os.environ['BREWDIR']
@@ -134,14 +131,9 @@ def convert(settings):
     mode, name_in, name_out = settings.get_converter_parameters()
     session = basic.Session(**settings.get_session_parameters())
     try:
-        name_in = session.bind_file(name_in or io.BytesIO(sys.stdin.read()))
-        session.execute('LOAD "%s"' % name_in)
-        name_out = session.bind_file(name_out or sys.stdout)
-        if mode == 'B':
-            session.execute('SAVE "%s"' % name_out)
-        else:
-            session.execute('SAVE "%s",%s' % (name_out, mode))
-    except basic.RunError as e:
+        session.load_program(name_in, rebuild_dict=False)
+        session.save_program(name_out, filetype=mode)
+    except basic.BASICError as e:
         logging.error(e.message)
 
 def launch_session(settings):
@@ -179,8 +171,8 @@ def run_session(iface=None, resume=False, state_file=None, wait=False,
             session = basic.Session(iface, **session_params)
         try:
             if prog:
-                logging.debug("Loading prgram %s", str(prog))
-                session.execute('LOAD "%s"' % session.bind_file(prog))
+                logging.info("main.py, run_session, Loading prgram %s", str(prog))
+                session.load_program(prog)
             for cmd in commands:
                 session.execute(cmd)
             session.interact()

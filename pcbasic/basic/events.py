@@ -2,7 +2,7 @@
 PC-BASIC - events.py
 Handlers for BASIC events
 
-(c) 2013, 2014, 2015, 2016 Rob Hagemans
+(c) 2013--2018 Rob Hagemans
 This file is released under the GNU GPL version 3 or later.
 """
 
@@ -21,7 +21,7 @@ import logging
 class BasicEvents(object):
     """Manage BASIC events."""
 
-    def __init__(self, values, input_methods, sound, clock, devices, screen, program, syntax):
+    def __init__(self, values, input_methods, sound, clock, files, screen, program, syntax):
         """Initialise event triggers."""
         self._values = values
         self._keyboard = input_methods.keyboard
@@ -29,7 +29,7 @@ class BasicEvents(object):
         self._stick = input_methods.stick
         self._sound = sound
         self._clock = clock
-        self._devices = devices
+        self._files = files
         self._screen = screen
         self._program = program
         # events start unactivated
@@ -59,8 +59,8 @@ class BasicEvents(object):
         self.timer = TimerHandler(self._clock)
         self.play = PlayHandler(self._sound, self.multivoice)
         self.com = [
-            ComHandler(self._devices.devices['COM1:']),
-            ComHandler(self._devices.devices['COM2:'])]
+            ComHandler(self._files.get_device('COM1:')),
+            ComHandler(self._files.get_device('COM2:'))]
         self.pen = PenHandler(self._pen)
         # joy*2 + button
         self.strig = [StrigHandler(self._stick, joy, button)
@@ -86,20 +86,21 @@ class BasicEvents(object):
         yield
         self.suspend_all = store
 
-
     def command(self, handler, command_char):
         """Turn the event ON, OFF and STOP."""
         if command_char == tk.ON:
             self.enabled.add(handler)
             handler.stopped = False
         elif command_char == tk.OFF:
-            self.enabled.discard(handler)
+            # this is needed to make serial events work correctly
+            # FIXME: I don't understand why
+            if not isinstance(handler, ComHandler):
+                self.enabled.discard(handler)
         elif command_char == tk.STOP:
             handler.stopped = True
         else:
             return False
         return True
-
 
     def check(self):
         """Check and trigger events."""
@@ -166,7 +167,7 @@ class BasicEvents(object):
         if jumpnum == 0:
             jumpnum = None
         elif jumpnum not in self._program.line_numbers:
-            raise error.RunError(error.UNDEFINED_LINE_NUMBER)
+            raise error.BASICError(error.UNDEFINED_LINE_NUMBER)
         list(args)
         if token == tk.KEY:
             keynum = values.to_int(num)
@@ -189,7 +190,7 @@ class BasicEvents(object):
             strigval = values.to_int(num)
             ## 0 -> [0][0] 2 -> [0][1]  4-> [1][0]  6 -> [1][1]
             if strigval not in (0,2,4,6):
-                raise error.RunError(error.IFC)
+                raise error.BASICError(error.IFC)
             self.strig[strigval//2].set_jump(jumpnum)
         elif token == tk.COM:
             comnum = values.to_int(num)
@@ -285,13 +286,18 @@ class ComHandler(EventHandler):
         """Initialise COM trigger."""
         EventHandler.__init__(self)
         self.device = com_device
+        self.log_COM_events = False
 
-    def check(self):
-        """Trigger COM-port events."""
-        if (self.device and self.device.char_waiting()):
-            logging.debug("events.py, ComHandler, check, triggering COM port event by char_waiting.")
-            self.trigger()
+    # treat com-port "trigger" as real-time check
+    @property
+    def triggered(self):
+        if self.log_COM_events:
+            logging.debug("events.py, ComHandler, triggered, triggering COM port event by char_waiting.")
+        return self.device.char_waiting()
 
+    @triggered.setter
+    def triggered(self, value):
+        pass
 
 class KeyHandler(EventHandler):
     """Manage KEY events."""

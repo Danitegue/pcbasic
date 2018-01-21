@@ -55,8 +55,7 @@ def get_logger(logfile=None):
     else:
         h = logging.StreamHandler()
     h.setLevel(logging.INFO)
-    #h.setFormatter(logging.Formatter(u'%(levelname)s: %(message)s'))
-    h.setFormatter(logging.Formatter(u'%(asctime)s.%(msecs)04d %(levelname)s: %(message)s',datefmt=u'%H:%M:%S'))
+    h.setFormatter(logging.Formatter(u'%(levelname)s: %(message)s'))
     l.addHandler(h)
     return l
 
@@ -289,7 +288,7 @@ class Settings(object):
         u'dimensions': {u'type': u'int', u'list': 2, u'default': [],},
         u'fullscreen': {u'type': u'bool', u'default': False,},
         u'nokill': {u'type': u'bool', u'default': False,},
-        u'debug': {u'type': u'bool', u'default': True,},
+        u'debug': {u'type': u'bool', u'default': False,},
         u'strict-hidden-lines': {u'type': u'bool', u'default': False,},
         u'strict-protect': {u'type': u'bool', u'default': False,},
         u'capture-caps': {u'type': u'bool', u'default': False,},
@@ -320,7 +319,7 @@ class Settings(object):
             u'type': u'string', u'choices': (u'rgb', u'composite', u'mono'),
             u'default': u'rgb',},
         u'aspect': {u'type': u'int', u'list': 2, u'default': [4, 3],},
-        u'scaling': {u'type': u'string', u'choices':(u'smooth', u'native', u'crisp'), u'default': u'native',}, #DS changed from smooth to native to make Brewer soft work.
+        u'scaling': {u'type': u'string', u'choices':(u'smooth', u'native', u'crisp'), u'default': u'smooth',},
         u'version': {u'type': u'bool', u'default': False,},
         u'config': {u'type': u'string', u'default': u'',},
         u'logfile': {u'type': u'string', u'default': u'',},
@@ -337,8 +336,6 @@ class Settings(object):
         u'ctrl-c-break': {u'type': u'bool', u'default': True,},
         u'wait': {u'type': u'bool', u'default': False,},
         u'current-device': {u'type': u'string', u'default': 'Z'},
-        u'use-serial-brewer': {u'type': u'bool', u'default': True},
-        u'use-serial-brewer-verbose': {u'type': u'bool', u'default': True},
         u'extension': {u'type': u'string', u'list': u'*', u'default': []},
         u'catch-exceptions': {u'type': u'string', u'choices':(u'none', u'basic', u'all'), u'default': u'all'},
     }
@@ -383,7 +380,6 @@ class Settings(object):
             logging.fatal(msg)
             raise Exception(msg)
 
-
     def _prepare_logging(self):
         """Set up the global logger."""
         logfile = self.get('logfile')
@@ -392,16 +388,12 @@ class Settings(object):
             loglevel = logging.INFO
         else:
             # logging setup before we import modules and may need to log errors
-
-
-            #formatstr = '%(levelname)s: %(message)s'
-            formatstr ='%(asctime)s.%(msecs)04d %(levelname)s: %(message)s'
+            formatstr = '[%(asctime)s.%(msecs)04d] %(levelname)s: %(message)s'
             if self.get('debug'):
                 loglevel = logging.DEBUG
             else:
                 loglevel = logging.INFO
-        #logging.basicConfig(format=formatstr, level=loglevel, filename=logfile)
-        logging.basicConfig(format=formatstr, level=loglevel,filename=logfile, datefmt='%H:%M:%S')
+        logging.basicConfig(format=formatstr, level=loglevel, filename=logfile, datefmt='%H:%M:%S')
 
     def _retrieve_options(self, uargv):
         """Retrieve command line and option file options."""
@@ -513,8 +505,7 @@ class Settings(object):
             'reserved_memory': self.get('reserved-memory'),
             'peek_values': peek_values,
             'extension': self.get('extension'),
-            'catch_exceptions': 'none' if self.get('convert') else self.get('catch-exceptions'),
-            'update_jumpcodes': not self.get('convert'),
+            'catch_exceptions': self.get('catch-exceptions'),
         }
 
     def get_video_parameters(self):
@@ -714,8 +705,8 @@ class Settings(object):
                     self._logger.warning(u'Ignored unrecognised option "=%s"', value)
             else:
                 self._logger.warning(u'Ignored pycharm args "=%s"', arg)
-            if ('run' in args.keys()) and (0 in args.keys()):
-                args.pop(0)
+        if ('run' in args.keys()) and (0 in args.keys()):
+            args.pop(0)
         return args
 
     def _parse_presets(self, remaining, conf_dict):

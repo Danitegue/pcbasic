@@ -2,7 +2,7 @@
 PC-BASIC - memory.py
 Model memory
 
-(c) 2013, 2014, 2015, 2016 Rob Hagemans
+(c) 2013--2018 Rob Hagemans
 This file is released under the GNU GPL version 3 or later.
 """
 
@@ -13,7 +13,6 @@ from collections import deque
 from ..base import error
 from ..base import tokens as tk
 from .. import values
-from .. import devices
 from . import scalars
 from . import arrays
 
@@ -41,6 +40,38 @@ from . import arrays
 # NOTE - the last two sections may be the other way around (2 bytes at end)
 # 65534                 total size (determined by CLEAR)
 
+
+############################################################################
+# FIELD buffers
+
+class Field(object):
+    """Buffer for FIELD access."""
+
+    def __init__(self, reclen, number=0, memory=None):
+        """Set up empty FIELD buffer."""
+        if number > 0:
+            self.address = memory.field_mem_start + (number-1)*memory.field_mem_offset
+        else:
+            self.address = -1
+        self.buffer = bytearray(reclen)
+        self.memory = memory
+
+    def attach_var(self, name, indices, offset, length):
+        """Attach a FIELD variable."""
+        if self.address < 0 or self.memory == None:
+            raise AttributeError("Can't attach variable to non-memory-mapped field.")
+        if name[-1] != values.STR:
+            # type mismatch
+            raise error.BASICError(error.TYPE_MISMATCH)
+        if offset + length > len(self.buffer):
+            # FIELD overflow
+            raise error.BASICError(error.FIELD_OVERFLOW)
+        # create a string pointer
+        str_addr = self.address + offset
+        str_sequence = struct.pack('<BH', length, str_addr)
+        # assign the string ptr to the variable name
+        # desired side effect: if we re-assign this string variable through LET, it's no longer connected to the FIELD.
+        self.memory.set_variable(name, indices, self.memory.values.from_bytes(str_sequence))
 
 
 class DataSegment(object):
@@ -101,7 +132,7 @@ class DataSegment(object):
         # fields are indexed by BASIC file number, hence max_files+1
         # file 0 (program/system file) probably doesn't need a field
         for i in range(self.max_files+1):
-            self.fields[i+1] = devices.Field(self.max_reclen, i+1, self)
+            self.fields[i+1] = Field(self.max_reclen, i+1, self)
 
     @contextmanager
     def get_stack(self):
@@ -199,7 +230,7 @@ class DataSegment(object):
         array_size = sum(self.arrays.memory_size(name, val[0])
                             for name, val in common_arrays.iteritems())
         if self.var_start() + scalar_size + array_size > string_store.current:
-            raise error.RunError(error.OUT_OF_MEMORY)
+            raise error.BASICError(error.OUT_OF_MEMORY)
         self.strings.rebuild(string_store)
         for name, value in common_scalars.iteritems():
             self.scalars.set(name, value)
@@ -225,7 +256,7 @@ class DataSegment(object):
         if self._get_free() <= size:
             self._collect_garbage()
             if self._get_free() <= size:
-                raise error.RunError(err)
+                raise error.BASICError(err)
 
     def var_start(self):
         """Start of variable data."""
@@ -242,17 +273,17 @@ class DataSegment(object):
     def set_stack_size(self, new_stack_size):
         """Set the stack size (on CLEAR) """
         if new_stack_size == 0:
-            raise error.RunError(error.IFC)
+            raise error.BASICError(error.IFC)
         self.stack_size = new_stack_size
 
     def set_basic_memory_size(self, new_size):
         """Set the data memory size (on CLEAR) """
         if new_size == 0:
-            raise error.RunError(error.IFC)
+            raise error.BASICError(error.IFC)
         elif new_size < 0:
             new_size += 0x10000
         if new_size > self.total_memory:
-            raise error.RunError(error.OUT_OF_MEMORY)
+            raise error.BASICError(error.OUT_OF_MEMORY)
         self.total_memory = new_size
 
     def get_memory(self, addr):
@@ -408,7 +439,7 @@ class DataSegment(object):
             else:
                 return self.arrays.varptr(name, indices)
         except KeyError:
-            raise error.RunError(error.IFC)
+            raise error.BASICError(error.IFC)
 
     def varptr_(self, args):
         """VARPTR: get memory address for variable or FCB."""
@@ -420,7 +451,7 @@ class DataSegment(object):
             list(args)
             # file number 0 is allowed for VARPTR
             if filenum < 0 or filenum > self.max_files:
-                raise error.RunError(error.BAD_FILE_NUMBER)
+                raise error.BASICError(error.BAD_FILE_NUMBER)
             var_ptr = self.field_mem_base + filenum * self.field_mem_offset + 6
         else:
             name = arg0
@@ -448,12 +479,12 @@ class DataSegment(object):
         found = self.arrays.dereference(address)
         if found is not None:
             return found
-        raise error.RunError(error.IFC)
+        raise error.BASICError(error.IFC)
 
     def get_value_for_varptrstr(self, varptrstr):
         """Get a value given a VARPTR$ representation."""
         if len(varptrstr) < 3:
-            raise error.RunError(error.IFC)
+            raise error.BASICError(error.IFC)
         varptrstr = bytearray(varptrstr)
         varptr, = struct.unpack('<H', varptrstr[1:3])
         return self.dereference(varptr)
@@ -465,7 +496,7 @@ class DataSegment(object):
                 # variable will be allocated
                 self.scalars.set(name)
                 if empty_err:
-                    raise error.RunError(error.IFC)
+                    raise error.BASICError(error.IFC)
             return self.scalars.view_buffer(name)
         else:
             # array will be allocated if retrieved and nonexistant
@@ -478,7 +509,7 @@ class DataSegment(object):
         name1, name2 = self.complete_name(name1), self.complete_name(name2)
         if name1[-1] != name2[-1]:
             # type mismatch
-            raise error.RunError(error.TYPE_MISMATCH)
+            raise error.BASICError(error.TYPE_MISMATCH)
         list(args)
         # get buffers (numeric representation or string pointer)
         left = self._view_buffer(name1, index1, False)

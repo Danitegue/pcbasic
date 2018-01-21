@@ -2,7 +2,7 @@
 PC-BASIC - session.py
 Session class and main interpreter loop
 
-(c) 2013, 2014, 2015, 2016 Rob Hagemans
+(c) 2013--2018 Rob Hagemans
 This file is released under the GNU GPL version 3 or later.
 """
 import os
@@ -23,7 +23,7 @@ from . import program
 from . import display
 from . import editor
 from . import inputmethods
-from . import debug
+from . import debug as dbg
 from . import clock
 from . import dos
 from . import memory
@@ -36,6 +36,7 @@ from . import codepage as cp
 from . import values
 from . import parser
 from . import devices
+from . import extensions
 
 
 class Session(object):
@@ -45,22 +46,24 @@ class Session(object):
     # public interface methods
 
     def __init__(self, iface=None,
-            syntax=u'advanced', option_debug=False, pcjr_term=u'', option_shell=u'',
+            syntax=u'advanced', pcjr_term=u'', shell=u'',
             output_file=None, append=False, input_file=None,
             codepage=u'437', box_protect=True,
-            video_capabilities=u'vga', font=u'freedos',
+            video=u'vga', font=u'freedos',
             monitor=u'rgb', mono_tint=(0, 255, 0), screen_aspect=(4, 3),
             text_width=80, video_memory=262144, cga_low=False,
-            keystring=u'', double=False,
+            keys=u'', double=False,
             peek_values=None, device_params=None,
             current_device='Z', mount_dict=None,
             print_trigger='close', serial_buffer_size=128,
-            utf8=False, universal=True, stdio=False,
+            utf8=False, universal=True, stdio=True,
             ignore_caps=True, ctrl_c_is_break=True,
-            max_list_line=65535, allow_protect=False,
+            max_list_line=65535, allow_protect=False, update_jumpcodes=True,
             allow_code_poke=False, max_memory=65534,
             max_reclen=128, max_files=3, reserved_memory=3429,
-            temp_dir=u'', debug_uargv=None):
+            temp_dir=u'', extension=None,
+            debug=False, catch_exceptions='basic',
+            ):
         """Initialise the interpreter session."""
         ######################################################################
         # session-level members
@@ -75,6 +78,7 @@ class Session(object):
         self._edit_prompt = False
         # terminal program for TERM command
         self._term_program = pcjr_term
+        self._reraise = (not catch_exceptions or catch_exceptions == 'none')
         ######################################################################
         # data segment
         ######################################################################
@@ -95,7 +99,7 @@ class Session(object):
         bytecode = codestream.TokenisedStream(self.memory.code_start)
         self.program = program.Program(
                 self.tokeniser, self.lister, max_list_line, allow_protect,
-                allow_code_poke, self.memory, bytecode)
+                allow_code_poke, self.memory, bytecode, update_jumpcodes)
         # register all data segment users
         self.memory.set_buffers(self.program)
         ######################################################################
@@ -119,13 +123,13 @@ class Session(object):
         # Sound is needed for the beeps on \a
         self.screen = display.Screen(
                 self.queues, self.values, self.input_methods, self.memory,
-                text_width, video_memory, video_capabilities, monitor,
+                text_width, video_memory, video, monitor,
                 self.sound, self.output_redirection,
                 cga_low, mono_tint, screen_aspect,
-                self.codepage, font, warn_fonts=option_debug)
+                self.codepage, font, warn_fonts=bool(debug))
         # initialise input methods
         # screen is needed for print_screen, clipboard copy and pen poll
-        self.input_methods.init(self.screen, self.codepage, keystring, ignore_caps, ctrl_c_is_break)
+        self.input_methods.init(self.screen, self.codepage, keys, ignore_caps, ctrl_c_is_break)
         # initilise floating-point error message stream
         self.values.set_screen(self.screen)
         ######################################################################
@@ -144,7 +148,7 @@ class Session(object):
         # set LPT1 as target for print_screen()
         self.screen.set_print_screen_target(self.devices.lpt1_file)
         # set up the SHELL command
-        self.shell = dos.get_shell_manager(self.input_methods.keyboard, self.screen, self.codepage, option_shell, syntax)
+        self.shell = dos.get_shell_manager(self.input_methods.keyboard, self.screen, self.codepage, shell, syntax)
         # set up environment
         self.environment = dos.Environment(self.values)
         # initialise random number generator
@@ -159,12 +163,16 @@ class Session(object):
                 self.screen, self.input_methods.keyboard, self.sound,
                 self.output_redirection, self.devices.lpt1_file)
         ######################################################################
+        # extensions
+        ######################################################################
+        self.extensions = extensions.Extensions(extension, self.values)
+        ######################################################################
         # interpreter
         ######################################################################
         # initialise the parser
         self.parser = parser.Parser(self.values, self.memory, syntax)
         # set up debugger
-        self.debugger = debug.get_debugger(self, option_debug, debug_uargv)
+        self.debugger = dbg.get_debugger(self, bool(debug), debug, catch_exceptions)
         # set up BASIC event handlers
         self.basic_events = events.BasicEvents(
                 self.values, self.input_methods, self.sound, self.clock,
@@ -187,6 +195,7 @@ class Session(object):
         self.machine = machine.MachinePorts(self)
         # build function table (depends on Memory having been initialised)
         self.parser.init_callbacks(self)
+
 
     def __enter__(self):
         """Context guard."""
@@ -228,17 +237,12 @@ class Session(object):
         self.input_redirection.attach(self.queues.inputs)
         return self
 
-    def load_program(self, prog, rebuild_dict=True):
-        """Load a program from native or BASIC file."""
-        with self._handle_exceptions():
-            with self.files.open_internal(prog, filetype='ABP', mode='I') as progfile:
-                self.program.load(progfile, rebuild_dict=rebuild_dict)
-
-    def save_program(self, prog, filetype):
-        """Save a program to native or BASIC file."""
-        with self._handle_exceptions():
-            with self.files.open_internal(prog, filetype=filetype, mode='O') as progfile:
-                self.program.save(progfile)
+    def bind_file(self, external_name, internal_name=None):
+        """Assign a BASIC file name to a file name or handle, if it exists."""
+        if not internal_name:
+            internal_name = bytes(external_name)
+        self.files.bind(external_name, internal_name)
+        return internal_name
 
     def execute(self, command):
         """Execute a BASIC statement."""
@@ -388,6 +392,8 @@ class Session(object):
         except error.RunError as e:
             self._handle_error(e)
             self._prompt = True
+            if self._reraise:
+                raise
         except error.Exit:
             raise
         except Exception as e:
@@ -496,8 +502,9 @@ class Session(object):
             # on Tandy, raises Internal Error
             # and deletes the program currently in memory
             raise error.RunError(error.INTERNAL_ERROR)
-        with self.files.open_internal(
-                self._term_program, filetype='ABP', mode='I') as progfile:
+        with self.files.open(
+                self.files.bind_file(self._term_program),
+                filetype='ABP', mode='I') as progfile:
             self.program.load(progfile)
         self.interpreter.error_handle_mode = False
         self.interpreter.clear_stacks_and_pointers()
@@ -768,7 +775,7 @@ class Session(object):
         if not readvar:
             raise error.RunError(error.STX)
         readvar = self.memory.complete_name(readvar)
-        if readvar[-1] != '$':
+        if readvar[-1] != values.STR:
             raise error.RunError(error.TYPE_MISMATCH)
         # read the input
         if finp:

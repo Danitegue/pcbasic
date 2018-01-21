@@ -50,8 +50,7 @@ class ExpressionParser(object):
         self._init_syntax()
         # callbacks must be initilised later
         self._callbacks = {}
-        self.daloloaded = False
-        self.daloloaded2 = False
+        self._extensions = {}
 
     def _init_syntax(self):
         """Initialise function syntax tables."""
@@ -146,6 +145,7 @@ class ExpressionParser(object):
             tk.SCREEN: partial(self._gen_parse_arguments_optional, length=3),
             tk.INSTR: self._gen_parse_instr,
             tk.FN: None,
+            '_': self._gen_parse_call_extension,
         }
         self._functions = set(self._complex.keys() + self._simple.keys())
 
@@ -228,6 +228,7 @@ class ExpressionParser(object):
             tk.EOF: session.files.eof_,
             tk.LOC: session.files.loc_,
             tk.LOF: session.files.lof_,
+            '_': session.extensions.call_as_function,
         }
 
     def __getstate__(self):
@@ -450,6 +451,18 @@ class ExpressionParser(object):
         """Parse a single, optional argument."""
         if ins.skip_blank_read_if(('(',)):
             yield self.parse(ins)
+            ins.require_read((')',))
+        else:
+            yield None
+
+    def _gen_parse_call_extension(self, ins):
+        """Parse an extension function."""
+        yield ins.read_name()
+        if ins.skip_blank_read_if(('(',)):
+            while True:
+                yield self.parse(ins)
+                if not ins.skip_blank_read_if((',',)):
+                    break
             ins.require_read((')',))
         else:
             yield None

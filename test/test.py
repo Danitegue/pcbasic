@@ -13,10 +13,11 @@ import filecmp
 import contextlib
 import traceback
 import time
+from copy import copy
 
 
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
-
+pythonpath = copy(sys.path)
 
 def is_same(file1, file2):
     try:
@@ -79,6 +80,7 @@ import pcbasic
 start_time = time.time()
 start_clock = time.clock()
 
+
 for name in args:
     print '\033[00;37mRunning test \033[01m%s \033[00;37m.. ' % name,
     if not os.path.isdir(name):
@@ -96,12 +98,14 @@ for name in args:
     top = os.getcwd()
     os.chdir(output_dir)
     sys.stdout.flush()
+    # we need to include the output dir in the PYTHONPATH for it to find extension modules
+    sys.path = pythonpath + [os.path.abspath('.')]
     # -----------------------------------------------------------
     # suppress output and logging and call PC-BASIC
     with suppress_stdio(do_suppress):
         crash = None
         try:
-            pcbasic.run('--interface=none', '--debug')
+            pcbasic.run('--interface=none', '--catch-exceptions=basic')
         except Exception as e:
             crash = e
             traceback.print_tb(sys.exc_info()[2])
@@ -113,14 +117,15 @@ for name in args:
     for path, dirs, files in os.walk(model_dir):
         for f in files:
             filename = os.path.join(path[len(model_dir)+1:], f)
-            if not is_same(os.path.join(output_dir, filename), os.path.join(model_dir, filename)):
+            if (not is_same(os.path.join(output_dir, filename), os.path.join(model_dir, filename))
+                    and not os.path.isfile(os.path.join(name, filename))):
                 failfiles.append(filename)
                 known = os.path.isdir(known_dir) and is_same(os.path.join(output_dir, filename), os.path.join(known_dir, filename))
                 passed = False
     for path, dirs, files in os.walk(output_dir):
         for f in files:
             filename = os.path.join(path[len(output_dir)+1:], f)
-            if not os.path.isfile(os.path.join(output_dir, filename)):
+            if (not os.path.isfile(os.path.join(model_dir, filename)) and not os.path.isfile(os.path.join(name, filename))):
                 failfiles.append(filename)
                 passed = False
                 known = False

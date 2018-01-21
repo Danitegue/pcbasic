@@ -19,7 +19,8 @@ class Program(object):
     """BASIC program."""
 
     def __init__(self, tokeniser, lister, max_list_line,
-                allow_protect, allow_code_poke, memory, bytecode):
+                allow_protect, allow_code_poke, memory, bytecode,
+                update_jumpcodes):
         """Initialise program."""
         self._memory = memory
         # program bytecode buffer
@@ -33,6 +34,7 @@ class Program(object):
         # for detokenise_line()
         self.tokeniser = tokeniser
         self.lister = lister
+        self._update_jumpcodes = update_jumpcodes
 
     def size(self):
         """Size of code space """
@@ -85,14 +87,15 @@ class Program(object):
             scanpos = self.bytecode.tell()
             offsets.append(scanpos)
         self.line_numbers[65536] = scanpos
-        # rebuild offsets
-        self.bytecode.seek(0)
-        last = 0
-        for pos in offsets:
-            self.bytecode.read(1)
-            self.bytecode.write(struct.pack('<H', self.code_start + 1 + pos))
-            self.bytecode.read(pos - last - 3)
-            last = pos
+        if self._update_jumpcodes:
+            # rebuild offsets
+            self.bytecode.seek(0)
+            last = 0
+            for pos in offsets:
+                self.bytecode.read(1)
+                self.bytecode.write(struct.pack('<H', self.code_start + 1 + pos))
+                self.bytecode.read(pos - last - 3)
+                last = pos
         # ensure program is properly sealed - last offset must be 00 00. keep, but ignore, anything after.
         self.bytecode.write('\0\0\0')
 
@@ -285,7 +288,7 @@ class Program(object):
         self.line_numbers.update(new_lines)
         return old_to_new
 
-    def load(self, g, rebuild_dict=True):
+    def load(self, g):
         """Load program from ascii, bytecode or protected stream."""
         self.erase()
         if g.filetype == 'B':
@@ -304,7 +307,7 @@ class Program(object):
         else:
             logging.debug("Incorrect file type '%s' on LOAD", g.filetype)
         # rebuild line number dict and offsets
-        if rebuild_dict and g.filetype != 'A':
+        if g.filetype != 'A':
             self.rebuild_line_dict()
         self.code_size = self.bytecode.tell()
 

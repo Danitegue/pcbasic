@@ -1,6 +1,6 @@
 <!--
     PC-BASIC documentation
-    Copyright (c) 2014-2015 Rob Hagemans
+    Copyright (c) 2014-2018 Rob Hagemans
     This work is licensed under a Creative Commons Attribution-ShareAlike 4.0 International License.
     http://creativecommons.org/licenses/by-sa/4.0/legalcode
 -->
@@ -144,6 +144,30 @@
                 </dd>
 
             </dl>
+        </dd>
+
+        <dt id="--catch-exceptions">
+            <code><b>--catch-exceptions=</b>[<b>none</b>,<b>basic</b>,<b>all</b>]</code>
+        </dt>
+        <dd>
+            <em>Developer option - use only if you know what you're doing. </em><br />
+            Determine which exceptions to catch. Uncaught exceptions terminate PC-BASIC
+            whereas caught exceptions lead to an error message.
+            <dl>
+                <dt><code><b>none</b></code></dt>
+                <dd>
+                    Don't catch exceptions or BASIC errors.
+                </dd>
+                <dt><code><b>basic</b></code></dt>
+                <dd>
+                    Catch BASIC errors but not other exceptions.
+                </dd>
+                <dt><code><b>all</b></code></dt>
+                <dd>
+                    Catch BASIC errors and other exceptions.
+                </dd>
+            </dl>
+            Default is <code><b>all</b></code>.
         </dd>
 
         <dt id="--cga-low">
@@ -342,6 +366,14 @@
             with the <code>Z:</code> device mounted to your current drive.
         </dd>
 
+        <dt id="--debug">
+            <code><b>--debug</b>[<b>=True</b>|<b>=False</b>]</code>
+        </dt>
+        <dd>
+            <em>Developer option - use only if you know what you're doing. </em><br />
+            Enable debugging extension.
+        </dd>
+
         <dt id="--dimensions">
             <code><b>--dimensions=</b><var>x</var>,<var>y</var></code>
         </dt>
@@ -363,13 +395,22 @@
         </dd>
 
         <dt id="--exec">
-            <code id="-e"><b>-e=</b><var>command_line</var>[<b>,</b><var>command_line</var> ... ]</code>
-            <code><b>--exec=</b><var>command_line</var></code>
+            <code id="-e"><b>-e=</b><var>compound_statement</var></code>
+            <code><b>--exec=</b><var>compound_statement</var></code>
         </dt>
         <dd>
-            Execute BASIC commands. The <code><var>command_line</var></code>s are executed in order
+            Execute a BASIC compound statement. The <code><var>compound_statement</var></code> is executed
             before entering into direct mode or
-            running a program.
+            running a program. Multiple statements can be entered by separating them with <code>:</code>, but note that no
+            further statements are executed after e.g. <code>RUN</code>, <code>GOTO</code>.
+        </dd>
+
+        <dt id="--extension">
+            <code><b>--extension=</b><var>module_name</var>[<b>,</b><var>module_name</var> ... ]</code>
+        </dt>
+        <dd>
+            <em>Developer option - use only if you know what you're doing. </em><br />
+            Load extension module(s).
         </dd>
 
         <dt id="--font">
@@ -688,7 +729,7 @@
         </dt>
         <dd>
             Define <code><a href="#PEEK">PEEK</a></code> preset values. If defined,
-            <code>DEF SEG:? PEEK(<var>addr</var>)</code> will return
+            <code>DEF SEG <var>seg</var>:? PEEK(<var>addr</var>)</code> will return
             <samp><var>val</var></samp>.
         </dd>
 

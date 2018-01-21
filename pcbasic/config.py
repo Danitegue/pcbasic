@@ -2,7 +2,7 @@
 PC-BASIC - config.py
 Configuration file and command-line options parser
 
-(c) 2013, 2014, 2015, 2016 Rob Hagemans
+(c) 2013--2018 Rob Hagemans
 This file is released under the GNU GPL version 3 or later.
 """
 
@@ -269,7 +269,7 @@ class Settings(object):
         u'convert': {u'type': u'string', u'default': u'', },
         u'help': {u'type': u'bool', u'default': False, },
         u'keys': {u'type': u'string', u'default': u'', },
-        u'exec': {u'type': u'string', u'list': u'*', u'default': u'',  },
+        u'exec': {u'type': u'string', u'default': u'', },
         u'quit': {u'type': u'bool', u'default': False,},
         u'double': {u'type': u'bool', u'default': False,},
         u'max-files': {u'type': u'int', u'default': 3,},
@@ -338,7 +338,9 @@ class Settings(object):
         u'wait': {u'type': u'bool', u'default': False,},
         u'current-device': {u'type': u'string', u'default': 'Z'},
         u'use-serial-brewer': {u'type': u'bool', u'default': True},
-        u'use-serial-brewer-verbose': {u'type': u'bool', u'default': True}
+        u'use-serial-brewer-verbose': {u'type': u'bool', u'default': True},
+        u'extension': {u'type': u'string', u'list': u'*', u'default': []},
+        u'catch-exceptions': {u'type': u'string', u'choices':(u'none', u'basic', u'all'), u'default': u'all'},
     }
 
 
@@ -461,11 +463,11 @@ class Settings(object):
         current_device, mount_dict = self.get_drives()
         return {
             'syntax': self.get('syntax'),
-            'option_debug': self.get('debug'),
+            'debug': self.uargv if self.get('debug') else None,
             'output_file': self.get(b'output'),
             'append': self.get(b'append'),
             'input_file': self.get(b'input'),
-            'video_capabilities': self.get('video'),
+            'video': self.get('video'),
             'codepage': self.get('codepage') or '437',
             'box_protect': not self.get('nobox'),
             'monitor': self.get('monitor'),
@@ -477,10 +479,10 @@ class Settings(object):
             'mono_tint': self.get('mono-tint'),
             'font': self.get('font'),
             # inserted keystrokes
-            'keystring': self.get('keys').encode('utf-8').decode('string_escape').decode('utf-8'),
+            'keys': self.get('keys').encode('utf-8').decode('string_escape').decode('utf-8'),
             # find program for PCjr TERM command
             'pcjr_term': pcjr_term,
-            'option_shell': self.get('shell'),
+            'shell': self.get('shell'),
             'double': self.get('double'),
             # device settings
             'device_params': device_params,
@@ -510,7 +512,9 @@ class Settings(object):
             # first field buffer address (workspace size; 3429 for gw-basic)
             'reserved_memory': self.get('reserved-memory'),
             'peek_values': peek_values,
-            'debug_uargv': self.uargv,
+            'extension': self.get('extension'),
+            'catch_exceptions': 'none' if self.get('convert') else self.get('catch-exceptions'),
+            'update_jumpcodes': not self.get('convert'),
         }
 
     def get_video_parameters(self):
@@ -556,7 +560,7 @@ class Settings(object):
         commands = []
         if not self.get('resume'):
             run = (self.get(0) != '') or (self.get('run') != '')
-            cmd = '\r'.join(self.get('exec'))
+            cmd = self.get('exec')
             # following GW, don't write greeting for redirected input
             # or command-line filter run
             if (not run and not cmd and not self.get('input') and not self.get('interface') == 'none'):

@@ -19,14 +19,14 @@ class Interpreter(object):
     """BASIC interpreter."""
 
     def __init__(self, debugger, input_methods, screen, files, sound,
-                values, memory, scalars, program, parser, basic_events):
+                values, memory, program, parser, basic_events):
         """Initialise interpreter."""
         self._debugger = debugger
         self._input_methods = input_methods
         self._basic_events = basic_events
         self._values = values
         self._memory = memory
-        self._scalars = scalars
+        self._scalars = memory.scalars
         self._screen = screen
         self._files = files
         self._sound = sound
@@ -65,10 +65,11 @@ class Interpreter(object):
     def parse(self):
         """Parse from the current pointer in current codestream."""
         while True:
-            #icfv1 = str(self._memory.scalars.get('ICF$'))
             # may raise Break
             # KEY events need to check pre-buffer, so check before draining
-            self._input_methods.check_events(self._basic_events.check)
+            self._input_methods.check_events()
+            # this drains the buffer
+            self._basic_events.check()
             try:
                 self.handle_basic_events()
                 ins = self.get_codestream()

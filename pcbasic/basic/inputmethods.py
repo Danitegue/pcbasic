@@ -63,6 +63,8 @@ home_key_replacements_eascii = {
     u'N': (scancode.NUMLOCK, u''),
     u'S': (scancode.SCROLLOCK, u''),
     u'C': (scancode.CAPSLOCK, u''),
+    u'H': (scancode.PRINT, uea.SHIFT_PRINT),
+    u'\x08': (scancode.PRINT, uea.CTRL_PRINT),
 }
 
 
@@ -70,21 +72,20 @@ home_key_replacements_eascii = {
 class InputMethods(object):
     """Manage input queue."""
 
-    def __init__(self, queues, values):
+    def __init__(self, queues, values,
+            codepage, keystring, ignore_caps, ctrl_c_is_break):
         """Initialise event triggers."""
         self._values = values
         self._queues = queues
+        self.pen = Pen()
+        self.stick = Stick(values)
+        # InputMethods needed for wait() only
+        self.keyboard = Keyboard(self, values,
+                codepage, queues, keystring, ignore_caps, ctrl_c_is_break)
 
-    def init(self, screen, codepage, keystring, ignore_caps, ctrl_c_is_break):
+    def set_screen_for_clipboard(self, screen):
         """Finish initialisation."""
         self._screen = screen
-        self.pen = Pen(screen)
-        self.stick = Stick(self._values)
-        # Screen needed in Keyboard for print_screen()
-        # and also for clipboard operations
-        # InputMethods needed for wait() only
-        self.keyboard = Keyboard(self, self._values, screen,
-                codepage, self._queues, keystring, ignore_caps, ctrl_c_is_break)
 
 
     ##########################################################################
@@ -98,8 +99,9 @@ class InputMethods(object):
         """Wait and check events."""
         time.sleep(self.tick)
         self.check_events()
+        self.keyboard.drain_event_buffer()
 
-    def check_events(self, event_checker=None):
+    def check_events(self):
         """Main event cycle."""
         # avoid screen lockups if video queue fills up
         if self._queues.video.qsize() > self.max_video_qsize:
@@ -109,10 +111,6 @@ class InputMethods(object):
         if self._queues.audio.qsize() > self.max_audio_qsize:
             self._queues.audio.join()
         self._check_input()
-        # KEY events need to check pre-buffer, so check before draining
-        if event_checker:
-            event_checker()
-        self.keyboard.drain_event_buffer()
 
     def _check_input(self):
         """Handle input events."""
@@ -300,7 +298,7 @@ class KeyboardBuffer(object):
 class Keyboard(object):
     """Keyboard handling."""
 
-    def __init__(self, input_methods, values, screen, codepage, queues, keystring, ignore_caps, ctrl_c_is_break):
+    def __init__(self, input_methods, values, codepage, queues, keystring, ignore_caps, ctrl_c_is_break):
         """Initilise keyboard state."""
         self._values = values
         # key queue (holds bytes)
@@ -321,8 +319,6 @@ class Keyboard(object):
         self.ignore_caps = ignore_caps
         # if true, treat Ctrl+C *exactly* like ctrl+break (unlike GW-BASIC)
         self.ctrl_c_is_break = ctrl_c_is_break
-        # screen is needed only for print_screen()
-        self.screen = screen
         # pre-inserted keystrings
         self.codepage = codepage
         self.buf.insert(self.codepage.str_from_unicode(keystring), check_full=False)
@@ -462,10 +458,6 @@ class Keyboard(object):
                     (scan == scancode.NUMLOCK and mod & modifier[scancode.CTRL])):
                 self.pause = True
                 return
-            elif scan == scancode.PRINT:
-                if mod & (modifier[scancode.LSHIFT] | modifier[scancode.RSHIFT]):
-                    # shift + printscreen
-                    self.screen.print_screen()
             self.buf.insert_keypress(
                     self.codepage.from_unicode(c),
                     scan, mod, check_full)
@@ -477,7 +469,7 @@ class Keyboard(object):
 class Pen(object):
     """Light pen support."""
 
-    def __init__(self, screen):
+    def __init__(self):
         """Initialise light pen."""
         self.is_down = False
         self.pos = 0, 0
@@ -486,7 +478,6 @@ class Pen(object):
         # signal pen has been down for event triggers in poll_event()
         self.was_down_event = False
         self.down_pos = (0, 0)
-        self.screen = screen
 
     def down(self, x, y):
         """Report a pen-down event at graphical x,y """
@@ -511,13 +502,11 @@ class Pen(object):
         result, self.was_down_event = self.was_down_event, False
         return result
 
-    def poll(self, fn, enabled):
+    def poll(self, fn, enabled, screen):
         """PEN: poll the light pen."""
         fn = values.to_int(fn)
         error.range_check(0, 9, fn)
         posx, posy = self.pos
-        fw = self.screen.mode.font_width
-        fh = self.screen.mode.font_height
         if fn == 0:
             pen_down_old, self.was_down = self.was_down, False
             pen = -1 if pen_down_old else 0
@@ -532,13 +521,13 @@ class Pen(object):
         elif fn == 5:
             pen = posy
         elif fn == 6:
-            pen = 1 + self.down_pos[1]//fh
+            pen = 1 + self.down_pos[1] // screen.mode.font_height
         elif fn == 7:
-            pen = 1 + self.down_pos[0]//fw
+            pen = 1 + self.down_pos[0] // screen.mode.font_width
         elif fn == 8:
-            pen = 1 + posy//fh
+            pen = 1 + posy // screen.mode.font_height
         elif fn == 9:
-            pen = 1 + posx//fw
+            pen = 1 + posx // screen.mode.font_width
         if not enabled:
             # should return 0 or char pos 1 if PEN not ON
             pen = 1 if fn >= 6 else 0

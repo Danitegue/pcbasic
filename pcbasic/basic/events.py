@@ -289,6 +289,7 @@ class ComHandler(EventHandler):
         self.log_COM_events = False
 
     # treat com-port "trigger" as real-time check
+
     @property
     def triggered(self):
         if self.log_COM_events:

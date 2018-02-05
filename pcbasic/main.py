@@ -10,7 +10,7 @@ import io
 import sys
 import locale
 import logging
-import pkgutil
+import pkg_resources
 import platform
 import traceback
 import threading
@@ -33,14 +33,6 @@ import datetime
 
 def main(*arguments):
     """Wrapper for run() to deal with Ctrl-C, stdio and pipes."""
-    logging.info("Started PCBASIC session.")
-    print "Started PCBASIC session at", datetime.datetime.now()
-    if 'BREWDIR' in os.environ.keys():
-        print "BREWDIR already exist in the enviroment variables, with value:", os.environ['BREWDIR']
-
-    if 'NOBREW' in os.environ.keys():
-        print "NOBREW already exist in the enviroment variables, with value:", os.environ['NOBREW']
-
     try:
         run(*arguments)
     except KeyboardInterrupt:
@@ -85,7 +77,7 @@ def run(*arguments):
 
 def show_usage():
     """Show usage description."""
-    sys.stdout.write(pkgutil.get_data(__name__, 'USAGE.txt'))
+    sys.stdout.write(pkg_resources.resource_string(__name__, 'USAGE.txt'))
 
 def show_version(settings):
     """Show version with optional debugging details."""

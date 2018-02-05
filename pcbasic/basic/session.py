@@ -115,22 +115,25 @@ class Session(object):
         # prepare I/O redirection
         self.input_redirection, self.output_redirection = redirect.get_redirection(
                 self.codepage, stdio, input_file, output_file, append, self.queues.inputs)
-        # prepare input methods
-        self.input_methods = inputmethods.InputMethods(self.queues, self.values)
+        # prepare input methods (keyboard, pen, joystick input handler)
+        self.input_methods = inputmethods.InputMethods(
+                self.queues, self.values,
+                self.codepage, keys, ignore_caps, ctrl_c_is_break)
         # initialise sound queue
         self.sound = sound.Sound(self.queues, self.values, self.input_methods, syntax)
         # Sound is needed for the beeps on \a
+        # InputMethods is needed for wait() in graphics
+        # InputMethods.keyboard is needed for key list at bottom row
         self.screen = display.Screen(
                 self.queues, self.values, self.input_methods, self.memory,
                 text_width, video_memory, video, monitor,
                 self.sound, self.output_redirection,
                 cga_low, mono_tint, screen_aspect,
                 self.codepage, font, warn_fonts=bool(debug))
-        # initialise input methods
-        # screen is needed for print_screen, clipboard copy and pen poll
-        self.input_methods.init(self.screen, self.codepage, keys, ignore_caps, ctrl_c_is_break)
+        # screen is needed for clipboard copy only
+        self.input_methods.set_screen_for_clipboard(self.screen)
         # initilise floating-point error message stream
-        self.values.set_screen(self.screen)
+        self.values.set_handler(values.FloatErrorHandler(self.screen))
         ######################################################################
         # devices
         ######################################################################
@@ -144,10 +147,10 @@ class Session(object):
                 device_params, current_device, mount_dict,
                 print_trigger, temp_dir,
                 utf8, universal)
-        # set LPT1 as target for print_screen()
-        self.screen.set_print_screen_target(self.files.lpt1_file)
         # set up the SHELL command
-        self.shell = dos.get_shell_manager(self.input_methods.keyboard, self.screen, self.codepage, shell, syntax)
+        self.shell = dos.get_shell_manager(
+                self.input_methods.keyboard, self.screen,
+                self.codepage, shell, syntax)
         # set up environment
         self.environment = dos.Environment(self.values)
         # initialise random number generator
@@ -179,7 +182,7 @@ class Session(object):
         # initialise the interpreter
         self.interpreter = interpreter.Interpreter(
                 self.debugger, self.input_methods, self.screen, self.files, self.sound,
-                self.values, self.memory, self.scalars, self.program, self.parser, self.basic_events)
+                self.values, self.memory, self.program, self.parser, self.basic_events)
         # PLAY parser
         self.play_parser = sound.PlayParser(self.sound, self.memory, self.values)
         ######################################################################

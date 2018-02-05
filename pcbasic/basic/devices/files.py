@@ -1,6 +1,7 @@
 """
 PC-BASIC - files.py
 Devices, Files and I/O operations
+
 (c) 2013--2018 Rob Hagemans
 This file is released under the GNU GPL version 3 or later.
 """
@@ -22,8 +23,9 @@ from . import disk
 from . import ports
 from . import parports
 
+
 # MS-DOS device files
-device_files = ('AUX', 'CON', 'NUL', 'PRN')
+DOS_DEVICE_FILES = (b'AUX', b'CON', b'NUL', b'PRN')
 
 
 ############################################################################
@@ -73,7 +75,7 @@ class Files(object):
                   reclen=128, seg=0, offset=0, length=0):
         """Open a file on a device specified by description."""
         loadinfo = 'files.py, open, loading file:' + str(description) + ' as file number' + str(number)
-        logging.info(loadinfo)
+        logging.debug(loadinfo)
         if (not description) or (number < 0) or (number > self.max_files):
             # bad file number; also for name='', for some reason
             raise error.BASICError(error.BAD_FILE_NUMBER)
@@ -150,33 +152,41 @@ class Files(object):
                 device_params, current_device, mount_dict,
                 print_trigger, temp_dir, serial_in_size, utf8, universal):
         """Initialise devices."""
-        self._devices = {}
-        self._values = values
-        # screen device
+        # screen device, for files_()
         self._screen = screen
-        self._devices['SCRN:'] = devicebase.SCRNDevice(screen)
-        # KYBD: device needs screen as it can set the screen width
-        self._devices['KYBD:'] = devicebase.KYBDDevice(keyboard, screen)
-        self.scrn_file = self._devices['SCRN:'].device_file
-        self.kybd_file = self._devices['KYBD:'].device_file
-        # ports
-        # parallel devices - LPT1: must always be defined
-        if not device_params:
-            device_params = {'LPT1:': '', 'LPT2:': '', 'LPT3:': '', 'COM1:': '', 'COM2:': '', 'CAS1:': ''}
-        self._devices['LPT1:'] = parports.LPTDevice(device_params['LPT1:'], devicebase.nullstream(), print_trigger, screen.codepage, temp_dir)
-        self._devices['LPT2:'] = parports.LPTDevice(device_params['LPT2:'], None, print_trigger, screen.codepage, temp_dir)
-        self._devices['LPT3:'] = parports.LPTDevice(device_params['LPT3:'], None, print_trigger, screen.codepage, temp_dir)
-        self.lpt1_file = self._devices['LPT1:'].device_file
-        # serial devices
-        # buffer sizes (/c switch in GW-BASIC)
-        logging.info('Initializating the GWBASIC Com Port 1, with serial_in_size=%s', serial_in_size)
-        self._devices['COM1:'] = ports.COMDevice(device_params['COM1:'], input_methods, serial_in_size)
-        logging.debug('Initializating the GWBASIC Com Port 2, with serial_in_size=%s', serial_in_size)
-        self._devices['COM2:'] = ports.COMDevice(device_params['COM2:'], input_methods, serial_in_size)
-        # cassette
-        # needs a screen for write() and write_line() to display Found and Skipped messages on opening files
-        self._devices['CAS1:'] = cassette.CASDevice(device_params['CAS1:'], screen)
-        self._init_disk_devices(input_methods, mount_dict, current_device, screen.codepage, utf8, universal)
+        device_params = device_params or {}
+        self._devices = {
+            b'SCRN:': devicebase.SCRNDevice(screen),
+            # KYBD: device needs screen as it can set the screen width
+            b'KYBD:': devicebase.KYBDDevice(keyboard, screen),
+            # cassette: needs screen to display Found and Skipped messages
+            b'CAS1:': cassette.CASDevice(device_params.get(b'CAS1:', None), screen),
+            # serial devices
+            b'COM1:': ports.COMDevice(
+                        device_params.get(b'COM1:', None),
+                        input_methods, serial_in_size),
+            b'COM2:': ports.COMDevice(
+                        device_params.get(b'COM2:', None),
+                        input_methods, serial_in_size),
+            # parallel devices - LPT1: must always be available
+            b'LPT1:': parports.LPTDevice(
+                        device_params.get(b'LPT1:', None), devicebase.nullstream(),
+                        print_trigger, screen.codepage, temp_dir),
+            b'LPT2:': parports.LPTDevice(
+                        device_params.get(b'LPT2:', None), None,
+                        print_trigger, screen.codepage, temp_dir),
+            b'LPT3:': parports.LPTDevice(
+                        device_params.get(b'LPT3:', None), None,
+                        print_trigger, screen.codepage, temp_dir),
+        }
+        # device files
+        self.scrn_file = self._devices[b'SCRN:'].device_file
+        self.kybd_file = self._devices[b'KYBD:'].device_file
+        self.lpt1_file = self._devices[b'LPT1:'].device_file
+        # disks
+        self._init_disk_devices(
+                input_methods, mount_dict, current_device,
+                screen.codepage, utf8, universal)
 
     def close_devices(self):
         """Close device master files."""
@@ -209,7 +219,7 @@ class Files(object):
         else:
             device = self._devices[self._current_device + b':']
             # MS-DOS device aliases - these can't be names of disk files
-            if device != self._devices['CAS1:'] and name in device_files:
+            if device != self._devices['CAS1:'] and name in DOS_DEVICE_FILES:
                 if name == 'AUX':
                     device, dev_param = self._devices['COM1:'], ''
                 elif name == 'CON' and mode == 'I':

@@ -15,7 +15,7 @@ from . import numbers
 import copy
 
 #This is to add to the logging info about the strings addressings (only for debugging)
-StringsLogging=False
+StringsLogging=True
 
 
 class String(numbers.Value):
@@ -179,18 +179,11 @@ class StringSpace(object):
 
     def copy_to(self, string_space, length, address):
         """Copy a string to another string space."""
-        string_to_copy=self.view(length, address).tobytes()
-        #return string_space.store(self.view(length, address).tobytes())
-        return string_space.store(string_to_copy)
+        return string_space.store(self.view(length, address).tobytes())
 
     def _retrieve(self, length, address):
         """Retrieve a string by its pointer."""
         # if string length == 0, return empty string
-        #if length != 0:
-        #    try:
-        #        strval=self._strings[address]
-        #    except KeyError:
-        #        logging.debug('strings.py, _retrieve, KeyError with address='+str(address)+', length='+str(length))
         return bytearray() if length == 0 else self._strings[address]
 
     def view(self, length, address):
@@ -236,7 +229,7 @@ class StringSpace(object):
                 self._memory.check_free(length, error.OUT_OF_STRING_SPACE)
             # find new string address
             currentstart=copy.deepcopy(self.current)
-            self.current = self.current - length
+            self.current -= length
             address = self.current + 1
             # don't store empty strings
             if length > 0:

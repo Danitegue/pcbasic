@@ -171,7 +171,6 @@ class DataSegment(object):
         """Set default string variables."""
         self.deftype_(values.STR, args)
 
-
     def clear(self, preserve_base, preserve_deftype):
         """Reset and clear variables, type definitions, array base and fields."""
         if not preserve_deftype:
@@ -186,8 +185,6 @@ class DataSegment(object):
             self.arrays.clear_base()
         # release all disk buffers (FIELD)?
         self.reset_fields()
-        # Test point
-
 
     @contextmanager
     def preserve_commons(self, preserve_common, preserve_all):

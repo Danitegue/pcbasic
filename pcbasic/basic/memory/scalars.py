@@ -19,7 +19,6 @@ class Scalars(object):
         """Initialise scalars."""
         self._memory = memory
         self._values = values
-        print 'Initializating scalars.py. Clearing scalar variables...'
         self.clear()
 
     def __contains__(self, varname):
@@ -39,7 +38,6 @@ class Scalars(object):
         self._vars = {}
         self._var_memory = {}
         self.current = 0
-        print '\memory\scalars.py, clear(), scalar variables cleant.'
 
     @staticmethod
     def _record_size(name):
@@ -94,7 +92,6 @@ class Scalars(object):
 
     def get(self, name):
         """Retrieve the value of a scalar variable."""
-
         try:
             # we can't copy as we may end up with stale string pointers
             getvalue=self._values.create(self._vars[name])

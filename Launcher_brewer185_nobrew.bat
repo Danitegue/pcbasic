@@ -47,7 +47,7 @@ PROMPT Brewer $P$G
 
 @echo on
 rem * Run the Brewer software
-%PCBASIC_PATH%\ansipipe-launcher.exe %PYTHON_DIR%\python.exe %PCBASIC_PATH%\run.py --mount=C:%MOUNT_C%,D:%MOUNT_D% --interface=ansi --run=%PROGRAM% --quit=False -f=10 --double=True --logfile=%LOG_DIR%\pcbasic_brewer_log.txt 
+%PCBASIC_PATH%\ansipipe-launcher.exe %PYTHON_DIR%\python.exe %PCBASIC_PATH%\run.py --mount=C:%MOUNT_C%,D:%MOUNT_D% --interface=ansi --run=%PROGRAM% --quit=False -f=10 --logfile=%LOG_DIR%\pcbasic_brewer_log.txt 
 
 
 

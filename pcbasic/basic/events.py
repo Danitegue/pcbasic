@@ -108,6 +108,8 @@ class BasicEvents(object):
         if self.active:
             for e in self.enabled:
                 e.check()
+        # we're done with the events, so the keyboard buffer can have them
+        self._keyboard.drain_event_buffer()
 
     ##########################################################################
     # callbacks
@@ -116,7 +118,7 @@ class BasicEvents(object):
     def pen_fn_(self, args):
         """PEN: poll the light pen."""
         fn, = args
-        result = self._pen.poll(fn, self.pen.enabled)
+        result = self._pen.poll(fn, self.pen.enabled, self._screen)
         return self._values.new_integer().from_int(result)
 
     def pen_(self, args):

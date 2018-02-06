@@ -337,7 +337,7 @@ class COMFile(devicebase.TextFileBase):
         if len(s)>0 and self.log_COM_Messages:
             free = self.lof()
             logging.debug("ports.py, COMFile, read_raw, read: %s, space in input buffer=%s",
-                          str(s).replace('\r', '\\r').replace('\n', '\\n').replace('\x00', '\\x00'), str(free))
+                          str(''.join(s)).replace('\r', '\\r').replace('\n', '\\n').replace('\x00', '\\x00'), str(free))
         return b''.join(s)
 
     def read(self, num=-1):
@@ -354,7 +354,7 @@ class COMFile(devicebase.TextFileBase):
         if len(s) > 0 and self.log_COM_Messages:
             free = self.lof()
             logging.debug("ports.py, COMFile, read, read: %s, space in input buffer=%s",
-                          str(s).replace('\r', '\\r').replace('\n', '\\n').replace('\x00', '\\x00'), str(free))
+                          str(''.join(s)).replace('\r', '\\r').replace('\n', '\\n').replace('\x00', '\\x00'), str(free))
         return b''.join(s)
 
     def read_line(self):
@@ -369,8 +369,8 @@ class COMFile(devicebase.TextFileBase):
         if len(out) > 0 and self.log_COM_Messages:
             free = self.lof()
             logging.debug("ports.py, COMFile, read_line, read: %s, space in input buffer=%s",
-                          str(out).replace('\r', '\\r').replace('\n', '\\n').replace('\x00', '\\x00'), str(free))
-        return ''.join(c)
+                          str(''.join(out)).replace('\r', '\\r').replace('\n', '\\n').replace('\x00', '\\x00'), str(free))
+        return b''.join(out)
 
     def write_line(self, s=''):
         """Write string or bytearray and newline to port."""

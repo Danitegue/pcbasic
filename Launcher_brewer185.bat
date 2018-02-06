@@ -1,12 +1,9 @@
 @echo off
-rem  Use this batch file to run the Brewer software without a Brewer
-rem  connected.
-
 rem ****************************************************************************
-rem Use the variables in this section to configure the execution of the program
+rem Use the variables in this section to configure the execution of the Brewer program
 rem ****************************************************************************
 
-rem PCBASIC_PATH is the path in which the pcbasic.py file is located
+rem PCBASIC_PATH is the path in which the run.py file is located
 set PCBASIC_PATH=C:\PCBasic_Brewer_Repo\pcbasic_brewer
 
 rem PYTHON_DIR is the folder in which the python.exe is located
@@ -23,6 +20,9 @@ set PROGRAM=main.asc
 
 rem COM_PORT is the identifier of the port in which the brewer is connected, for example COM_PORT=COM8
 set COM_PORT=COM14
+
+rem Set the LOG_DIR in order to write the pcbasic session log.
+set LOG_DIR=C:\Temp
 
 
 rem ****************************************************************************
@@ -46,7 +46,7 @@ PROMPT Brewer $P$G
 
 @echo on
 rem * Run the Brewer software
-%PCBASIC_PATH%\ansipipe-launcher.exe %PYTHON_DIR%\python.exe %PCBASIC_PATH%\run.py --mount=C:%MOUNT_C%,D:%MOUNT_D% --interface=ansi --run=%PROGRAM% --quit=False -f=10 --double=True --com1=PORT:%COM_PORT% --logfile=C:\Temp\pcbasic_brewer_log.txt
+%PCBASIC_PATH%\ansipipe-launcher.exe %PYTHON_DIR%\python.exe %PCBASIC_PATH%\run.py --mount=C:%MOUNT_C%,D:%MOUNT_D% --interface=ansi --run=%PROGRAM% --quit=False -f=10 --double=True --com1=PORT:%COM_PORT% --logfile=%LOG_DIR%\pcbasic_brewer_log.txt
 
 
 

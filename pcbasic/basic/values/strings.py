@@ -234,7 +234,7 @@ class StringSpace(object):
             # don't store empty strings
             if length > 0:
                 if StringsLogging:
-                    logging.debug('strings.py, store, self.current at start='+str(currentstart)+', storing:' + str(in_str) + ' into address:' + str(address)+ ', self.current at end='+str(self.current)+', len='+str(length))
+                    logging.debug('strings.py, store, self.current at start='+str(currentstart)+', storing:' + str(in_str).replace('\r', '\\r').replace('\n', '\\n').replace('\x00', '\\x00') + ' into address:' + str(address)+ ', self.current at end='+str(self.current)+', len='+str(length))
                 # copy and convert to bytearray
                 self._strings[address] = bytearray(in_str)
         return length, address

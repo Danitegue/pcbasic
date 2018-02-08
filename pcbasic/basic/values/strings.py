@@ -15,7 +15,7 @@ from . import numbers
 import copy
 
 #This is to add to the logging info about the strings addressings (only for debugging)
-StringsLogging=True
+StringsLogging=False
 
 
 class String(numbers.Value):

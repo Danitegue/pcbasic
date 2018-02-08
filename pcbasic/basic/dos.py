@@ -131,6 +131,7 @@ class WindowsShell(ShellBase):
         cmd = self.command
         if command:
             cmd += u' /C ' + self.codepage.str_to_unicode(command)
+        logging.debug("dos.py, launch, running shell command: %s",str(cmd))
         p = subprocess.Popen(cmd.encode(self._encoding).split(), stdin=subprocess.PIPE,
                     stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
         outp = threading.Thread(target=self._process_stdout, args=(p.stdout, shell_output))
@@ -140,12 +141,13 @@ class WindowsShell(ShellBase):
         errp.daemon = True
         errp.start()
         word = b''
-        while p.poll() is None or shell_output:
+        while (p.poll() is None) or shell_output:
             if shell_output:
                 lines, shell_output[:] = b''.join(shell_output).split('\r\n'), []
                 last = lines.pop()
                 for line in lines:
                     self.screen.write_line(self.codepage.str_from_unicode(line.decode(self._encoding)))
+                    logging.debug("dos.py, launch, return from shell: %s", str(line))
                 self.screen.write(self.codepage.str_from_unicode(last.decode(self._encoding)))
             if p.poll() is not None:
                 # drain output then break

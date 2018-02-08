@@ -24,25 +24,12 @@ else:
         return select.select([sys.stdin], [], [], 0)[0] != []
 
 try:
-    from ... import config
-    c = config.get_unicode_argv()
-    if '--use-serial-brewer=True' in c:
-        useserialbrewer = True
-    else:
-        useserialbrewer = False
-
-    if useserialbrewer:
-        #sys.path.append('C:/GWBasic_Interpreter/pcbasic_brewer/pcbasic/brewlib')
-        from ...brewlib import serial as serial
-        from ...brewlib.serial import SerialException, serialutil
-    else:
-        import serial
-        # use the old VERSION constant as __version__ not defined in v2
-        if serial.VERSION < '3':
-            logging.warning('PySerial version %s found but >= 3.0.0 required.')
-            raise ImportError
-        from serial import SerialException, serialutil
-
+    import serial
+    # use the old VERSION constant as __version__ not defined in v2
+    if serial.VERSION < '3':
+        logging.warning('PySerial version %s found but >= 3.0.0 required.', serial.VERSION)
+        raise ImportError
+    from serial import SerialException, serialutil
 except Exception:
     serial = None
     SerialException = IOError

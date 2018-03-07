@@ -129,10 +129,34 @@ class WindowsShell(ShellBase):
         """Run a SHELL subprocess."""
         shell_output = []
         cmd = self.command
+
         if command:
             cmd += u' /C ' + self.codepage.str_to_unicode(command)
         if DosLogging:
             logging.debug("dos.py, launch, running shell command: %s",str(cmd))
+
+        #Daniel Santana addon - 20180307
+        #Workaround to emulate the command "shell copy file1+file2 destination" actions from python.
+        #This is done because there are differences on how the shell copy works
+        #in the windows x86 respect x64.
+        # in win x86 "shell copy file1+file2 destination" will create the file1 if it does not exist.
+        # in win x64 the command only works if file1 exist.
+
+        # Delete multiple spaces and split by spaces
+        command_spl = ' '.join(command.split()).split(" ")
+        if "copy" in (command_spl[0].lower()) and "+" in (command_spl[1]) and len(command_spl)==3:
+            if DosLogging:
+                logging.debug("dos.py, launch, emulating the actions of the command shell copy file1+file2 dest from python: file1 will be created if it does not exist")
+            files_to_append = command_spl[1].split("+")
+            f0=open(files_to_append[0],"a") #This will create the file if it does not exist.
+            for path_i in files_to_append[1:]:
+                fi=open(path_i,"r")
+                dati=fi.read()
+                fi.close()
+                f0.write(dati)
+            #Once all done, exit of the SHELL funciton
+            return
+
         p = subprocess.Popen(cmd.encode(self._encoding).split(), stdin=subprocess.PIPE,
                     stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
         outp = threading.Thread(target=self._process_stdout, args=(p.stdout, shell_output))

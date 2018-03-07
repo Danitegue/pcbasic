@@ -154,6 +154,7 @@ class WindowsShell(ShellBase):
                 dati=fi.read()
                 fi.close()
                 f0.write(dati)
+            f0.close()
             #Once all done, exit of the SHELL funciton
             return
 

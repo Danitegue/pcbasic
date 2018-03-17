@@ -148,16 +148,16 @@ class WindowsShell(ShellBase):
             if DosLogging:
                 logging.debug("dos.py, launch, emulating the actions of the command shell copy file1+file2 dest from python: file1 will be created if it does not exist")
             files_to_append = command_spl[1].split("+")
-            f0=open(files_to_append[0],"a") #This will create the file if it does not exist.
-            for path_i in files_to_append[1:]:
+            f0=open(files_to_append[0],"a");f0.close() #This will create the file if it does not exist.
+            fd=open(command_spl[2],"a") #Open destination file
+            for path_i in files_to_append: #Append every file contents into destination file
                 fi=open(path_i,"r")
-                dati=fi.read()
+                fd.write(fi.read())
                 fi.close()
-                f0.write(dati)
-            f0.close()
+            fd.close()
             #Once all done, exit of the SHELL funciton
             return
-
+        
         p = subprocess.Popen(cmd.encode(self._encoding).split(), stdin=subprocess.PIPE,
                     stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
         outp = threading.Thread(target=self._process_stdout, args=(p.stdout, shell_output))
@@ -174,7 +174,7 @@ class WindowsShell(ShellBase):
                 for line in lines:
                     self.screen.write_line(self.codepage.str_from_unicode(line.decode(self._encoding)))
                     if DosLogging:
-                        logging.debug("dos.py, launch, return from shell: %s", str(line))
+                        logging.debug("dos.py, launch, return from shell: %s", str(line).replace('\r', '\\r').replace('\n', '\\n'))
                 self.screen.write(self.codepage.str_from_unicode(last.decode(self._encoding)))
             if p.poll() is not None:
                 # drain output then break

@@ -369,7 +369,7 @@ class COMFile(devicebase.TextFileBase):
             if self._linefeed:
                 s = s.replace(b'\r', b'\r\n')
             if self.log_COM_Messages:
-                logging.debug("ports.py, COMFile, write_line, writting line to com port: %s", str(s).replace('\r', '\\r').replace('\n', '\\n').replace('\x00', '\\x00'))
+                logging.debug("ports.py, COMFile, write, writting line to com port: %s", str(s).replace('\r', '\\r').replace('\n', '\\n').replace('\x00', '\\x00'))
             self.fhandle.write(s)
         except (EnvironmentError, ValueError) as e:
             raise error.BASICError(error.DEVICE_IO_ERROR)

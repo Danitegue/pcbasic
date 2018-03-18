@@ -210,7 +210,7 @@ class COMDevice(devicebase.Device):
     def _check_open(self):
         """Open the underlying port if necessary."""
         if not self._serial.is_open:
-            logging.debug('ports.py, SerialStream, _check_open, Seems that the underlying port is not open, oppening it')
+            logging.debug('ports.py, COMDevice, _check_open, Seems that the underlying port is not open, oppening it')
             self._serial.open()
 
     def _open_serial(self, rs=False, cs=1000, ds=1000, cd=0):
@@ -276,6 +276,7 @@ class COMDevice(devicebase.Device):
 
     def close(self):
         """Close the serial connection."""
+        logging.debug('ports.py, COMDevice, close, closing the serial port.')
         if self._serial and self._serial.is_open:
             self._serial.close()
 

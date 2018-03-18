@@ -15,7 +15,8 @@ from ..base import tokens as tk
 from .. import values
 from . import scalars
 from . import arrays
-
+import logging
+trace_strings=[]
 
 # Data Segment Map - default situation
 # addr      size
@@ -420,6 +421,8 @@ class DataSegment(object):
     def set_variable(self, name, indices, value):
         """Assign a value to a scalar variable or an array element."""
         name = self.complete_name(name)
+        if name in trace_strings:
+            logging.debug("memory.py, DataSegment, set_variable(): Setting "+str(name)+ " var to:"+str(value))
         if indices == []:
             self.scalars.set(name, value)
         else:

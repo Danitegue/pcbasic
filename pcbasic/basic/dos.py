@@ -157,7 +157,7 @@ class WindowsShell(ShellBase):
             fd.close()
             #Once all done, exit of the SHELL funciton
             return
-        
+
         p = subprocess.Popen(cmd.encode(self._encoding).split(), stdin=subprocess.PIPE,
                     stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
         outp = threading.Thread(target=self._process_stdout, args=(p.stdout, shell_output))

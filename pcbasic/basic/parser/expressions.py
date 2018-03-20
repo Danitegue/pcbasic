@@ -177,8 +177,8 @@ class ExpressionParser(object):
             tk.STRING: values.string_,
             tk.INSTR: values.instr_,
             tk.CSRLIN: session.screen.csrlin_,
-            tk.POINT: session.screen.point_,
-            tk.INKEY: session.input_methods.keyboard.inkey_,
+            tk.POINT: session.drawing.point_,
+            tk.INKEY: session.keyboard.inkey_,
             tk.CVI: values.cvi_,
             tk.CVS: values.cvs_,
             tk.CVD: values.cvd_,
@@ -190,7 +190,7 @@ class ExpressionParser(object):
             tk.TIME: session.clock.time_fn_,
             tk.PLAY: session.sound.play_fn_,
             tk.TIMER: session.clock.timer_,
-            tk.PMAP: session.screen.pmap_,
+            tk.PMAP: session.drawing.pmap_,
             tk.LEFT: values.left_,
             tk.RIGHT: values.right_,
             tk.MID: values.mid_,
@@ -222,9 +222,9 @@ class ExpressionParser(object):
             tk.CSNG: values.csng_,
             tk.CDBL: values.cdbl_,
             tk.FIX: values.fix_,
-            tk.PEN: session.basic_events.pen_fn_,
-            tk.STICK: session.input_methods.stick.stick_,
-            tk.STRIG: session.input_methods.stick.strig_,
+            tk.PEN: session.pen_fn_,
+            tk.STICK: session.stick.stick_,
+            tk.STRIG: session.stick.strig_,
             tk.EOF: session.files.eof_,
             tk.LOC: session.files.loc_,
             tk.LOF: session.files.lof_,
@@ -306,7 +306,9 @@ class ExpressionParser(object):
                     name = ins.read_name()
                     error.throw_if(not name, error.STX)
                     indices = self.parse_indices(ins)
-                    units.append(self._memory.get_variable(name, indices))
+                    view = self._memory.view_or_create_variable(name, indices)
+                    # should make a shallow copy? but .clone here breaks circular MID$
+                    units.append(view)
                 elif d in self._functions:
                     units.append(self._parse_function(ins, d))
                     #if not isinstance(units[-1], values.String):

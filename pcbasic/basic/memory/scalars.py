@@ -57,8 +57,6 @@ class Scalars(object):
 
     def set(self, name, value=None):
         """Assign a value to a variable."""
-        #if name in ['ICF$','YF$']:
-        #    print 'scalars.py, set, Assigning value '+str(value)+' to var: '+str(name)+ '; ICF$='+str(self._memory.scalars.get('ICF$'))
         if isinstance(value, values.String):
             self._memory.strings.fix_temporaries()
         type_char = name[-1]
@@ -94,13 +92,8 @@ class Scalars(object):
         """Retrieve the value of a scalar variable."""
         try:
             # we can't copy as we may end up with stale string pointers
-            getvalue=self._values.create(self._vars[name])
-            #if name in ['ICF$']:
-            #    print 'scalars.py, get, Retrieving the value of the scalar var ', str(name), ', got:', str(getvalue)
-            return getvalue
+            return self._values.create(self._vars[name])
         except KeyError:
-            #if name in ['ICF$']:
-            #   print 'scalars.py, get, Retrieving the value of the scalar var ', str(name), ' got: Error.'
             return self._values.new(name[-1])
 
     def view(self, name):

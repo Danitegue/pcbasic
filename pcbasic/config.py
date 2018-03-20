@@ -16,36 +16,41 @@ import locale
 import tempfile
 import shutil
 import platform
+import pkg_resources
 
 from collections import deque
 
 if platform.system() == b'Windows':
-    import ctypes
-    import ctypes.wintypes
+    # can use ctypes instead?
     import win32api
 
-from .version import __version__, GREETING, ICON
-from .basic import codepages, fonts, programs
+from .basic.metadata import VERSION, NAME
+from .data import CODEPAGES, FONTS, PROGRAMS, ICON
+from . import data
+
 
 MIN_PYTHON_VERSION = (2, 7, 12)
 
-basename = u'pcbasic-dev'
-# user configuration and state directories
-_home_dir = os.path.expanduser(u'~')
-if platform.system() == b'Windows':
-    user_config_dir = os.path.join(os.getenv(u'APPDATA'), basename)
-    state_path = user_config_dir
-elif platform.system() == b'Darwin':
-    user_config_dir = os.path.join(_home_dir, u'Library', u'Application Support', basename)
-    state_path = user_config_dir
-else:
-    _xdg_data_home = os.environ.get(u'XDG_DATA_HOME') or os.path.join(_home_dir, u'.local', u'share')
-    _xdg_config_home = os.environ.get(u'XDG_CONFIG_HOME') or os.path.join(_home_dir, u'.config')
-    user_config_dir = os.path.join(_xdg_config_home, basename)
-    state_path = os.path.join(_xdg_data_home, basename)
+# base directory name
+MAJOR_VERSION = u'.'.join(VERSION.split(u'.')[:2])
+BASENAME = u'pcbasic-{0}'.format(MAJOR_VERSION)
 
-# @: drive for bundled programs
-program_path = os.path.join(state_path, u'bundled_programs')
+# user configuration and state directories
+HOME_DIR = os.path.expanduser(u'~')
+if platform.system() == b'Windows':
+    USER_CONFIG_DIR = os.path.join(os.getenv(u'APPDATA'), BASENAME)
+    STATE_PATH = USER_CONFIG_DIR
+elif platform.system() == b'Darwin':
+    USER_CONFIG_DIR = os.path.join(HOME_DIR, u'Library', u'Application Support', BASENAME)
+    STATE_PATH = USER_CONFIG_DIR
+else:
+    USER_CONFIG_DIR = os.path.join(
+        os.environ.get(u'XDG_CONFIG_HOME') or os.path.join(HOME_DIR, u'.config'), BASENAME)
+    STATE_PATH = os.path.join(
+        os.environ.get(u'XDG_DATA_HOME') or os.path.join(HOME_DIR, u'.local', u'share'), BASENAME)
+
+# @: target drive for bundled programs
+PROGRAM_PATH = os.path.join(STATE_PATH, u'bundled_programs')
 
 
 def get_logger(logfile=None):
@@ -60,32 +65,6 @@ def get_logger(logfile=None):
     h.setFormatter(logging.Formatter(u'%(levelname)s: %(message)s'))
     l.addHandler(h)
     return l
-
-def get_unicode_argv():
-    """Convert command-line arguments to unicode."""
-    if platform.system() == b'Windows':
-        # see http://code.activestate.com/recipes/572200-get-sysargv-with-unicode-characters-under-windows/
-        GetCommandLineW = ctypes.cdll.kernel32.GetCommandLineW
-        GetCommandLineW.argtypes = []
-        GetCommandLineW.restype = ctypes.wintypes.LPCWSTR
-        cmd = GetCommandLineW()
-        argc = ctypes.c_int(0)
-        CommandLineToArgvW = ctypes.windll.shell32.CommandLineToArgvW
-        CommandLineToArgvW.argtypes = [ctypes.wintypes.LPCWSTR, ctypes.POINTER(ctypes.c_int)]
-        CommandLineToArgvW.restype = ctypes.POINTER(ctypes.wintypes.LPWSTR)
-        argv = CommandLineToArgvW(cmd, ctypes.byref(argc))
-        argv = [argv[i] for i in xrange(argc.value)]
-        # clip off the python interpreter call, if we use it
-        if not hasattr(sys, 'frozen'):
-            argv = argv[1:]
-            if argv[0] == u'-m':
-                # we've been called with `python -m pcbasic`, drop the -m too
-                argv = argv[1:]
-        return argv
-    else:
-        # the official parameter should be LC_CTYPE but that's None in my locale
-        # on windows, this would only work if the mbcs CP_ACP includes the characters we need
-        return [arg.decode(locale.getpreferredencoding()) for arg in sys.argv]
 
 def append_arg(args, key, value):
     """Update a single list-type argument by appending a value."""
@@ -104,6 +83,12 @@ def safe_split(s, sep):
     else:
         s1 = u''
     return s0, s1
+
+def store_bundled_programs(PROGRAM_PATH):
+    """Retrieve contents of BASIC programs."""
+    for name in PROGRAMS:
+        with open(os.path.join(PROGRAM_PATH, name), 'wb') as f:
+            f.write(data.read_program_file(name))
 
 
 class TemporaryDirectory():
@@ -150,7 +135,7 @@ class Settings(object):
             },
         u'pcjr': {
             u'syntax': u'pcjr',
-            u'pcjr-term': '@:\PCTERM.BAS',
+            u'pcjr-term': os.path.join(PROGRAM_PATH, 'PCTERM.BAS'),
             u'video': u'pcjr',
             u'font': u'vga',
             u'codepage': u'437',
@@ -206,7 +191,7 @@ class Settings(object):
 
     # user and local config files
     config_name = u'PCBASIC.INI'
-    user_config_path = os.path.join(user_config_dir, config_name)
+    user_config_path = os.path.join(USER_CONFIG_DIR, config_name)
 
     # save-state file name
     state_name = 'pcbasic.session'
@@ -262,8 +247,7 @@ class Settings(object):
                         u'ansi', u'curses', u'pygame', u'sdl2'), },
         u'sound-engine': {
             u'type': u'string', u'default': u'',
-            u'choices': (u'', u'none',
-                        u'beep', u'portaudio', u'pygame', u'sdl2'), },
+            u'choices': (u'', u'none', u'beep', u'portaudio'), },
         u'load': {u'type': u'string', u'default': u'', },
         u'run': {u'type': u'string', u'default': u'',  },
         u'convert': {u'type': u'string', u'default': u'', },
@@ -282,9 +266,9 @@ class Settings(object):
         u'cas1': {u'type': u'string', u'default': u'',},
         u'com1': {u'type': u'string', u'default': u'',},
         u'com2': {u'type': u'string', u'default': u'',},
-        u'codepage': {u'type': u'string', u'choices': codepages, u'default': u'437',},
+        u'codepage': {u'type': u'string', u'choices': CODEPAGES, u'default': u'437',},
         u'font': {
-            u'type': u'string', u'list': u'*', u'choices': fonts,
+            u'type': u'string', u'list': u'*', u'choices': FONTS,
             u'default': [u'unifont', u'univga', u'freedos'],},
         u'dimensions': {u'type': u'int', u'list': 2, u'default': [],},
         u'fullscreen': {u'type': u'bool', u'default': False,},
@@ -292,7 +276,6 @@ class Settings(object):
         u'debug': {u'type': u'bool', u'default': False,},
         u'strict-hidden-lines': {u'type': u'bool', u'default': False,},
         u'strict-protect': {u'type': u'bool', u'default': False,},
-        u'capture-caps': {u'type': u'bool', u'default': False,},
         u'mount': {u'type': u'string', u'list': u'*', u'default': [],},
         u'resume': {u'type': u'bool', u'default': False,},
         u'strict-newline': {u'type': u'bool', u'default': False,},
@@ -302,25 +285,24 @@ class Settings(object):
         u'pcjr-term': {u'type': u'string', u'default': u'',},
         u'video': {
             u'type': u'string', u'default': 'vga',
-            u'choices': (u'vga', u'ega', u'cga', u'cga_old', u'mda', u'pcjr', u'tandy',
-                         u'hercules', u'olivetti'), },
+            u'choices': (
+                u'vga', u'ega', u'cga', u'cga_old', u'mda',
+                u'pcjr', u'tandy', u'hercules', u'olivetti'), },
         u'map-drives': {u'type': u'bool', u'default': False,},
         u'cga-low': {u'type': u'bool', u'default': False,},
         u'nobox': {u'type': u'bool', u'default': False,},
         u'utf8': {u'type': u'bool', u'default': False,},
         u'border': {u'type': u'int', u'default': 5,},
-        u'pen': {
-            u'type': u'string', u'default': u'left',
-            u'choices': (u'left', u'middle', u'right', u'none',), },
-        u'copy-paste': {u'type': u'string', u'list': 2, u'default': [u'left', u'middle'],
-                       u'choices': (u'left', u'middle', u'right', u'none',),},
+        u'mouse-clipboard': {u'type': u'bool', u'default': True,},
         u'state': {u'type': u'string', u'default': u'',},
         u'mono-tint': {u'type': u'int', u'list': 3, u'default': [255, 255, 255],},
         u'monitor': {
             u'type': u'string', u'choices': (u'rgb', u'composite', u'mono'),
             u'default': u'rgb',},
         u'aspect': {u'type': u'int', u'list': 2, u'default': [4, 3],},
-        u'scaling': {u'type': u'string', u'choices':(u'smooth', u'native', u'crisp'), u'default': u'smooth',},
+        u'scaling': {
+            u'type': u'string', u'choices':(u'smooth', u'native', u'crisp'),
+            u'default': u'smooth',},
         u'version': {u'type': u'bool', u'default': False,},
         u'config': {u'type': u'string', u'default': u'',},
         u'logfile': {u'type': u'string', u'default': u'',},
@@ -328,26 +310,23 @@ class Settings(object):
         u'max-memory': {u'type': u'int', u'list': -2, u'default': [65534, 4096]},
         u'allow-code-poke': {u'type': u'bool', u'default': False,},
         u'reserved-memory': {u'type': u'int', u'default': 3429,},
-        u'caption': {u'type': u'string', u'default': 'PC-BASIC',},
+        u'caption': {u'type': u'string', u'default': NAME,},
         u'text-width': {u'type': u'int', u'choices':(40, 80), u'default': 80,},
         u'video-memory': {u'type': u'int', u'default': 262144,},
         u'shell': {u'type': u'string', u'default': u'',},
-        u'print-trigger': {u'type': u'string', u'choices':(u'close', u'page', u'line'), u'default': u'close',},
-        u'altgr': {u'type': u'bool', u'default': True,},
         u'ctrl-c-break': {u'type': u'bool', u'default': True,},
         u'wait': {u'type': u'bool', u'default': False,},
         u'current-device': {u'type': u'string', u'default': 'Z'},
         u'extension': {u'type': u'string', u'list': u'*', u'default': []},
-        u'catch-exceptions': {u'type': u'string', u'choices':(u'none', u'basic', u'all'), u'default': u'all'},
     }
 
 
     def __init__(self, temp_dir, arguments):
         """Initialise settings."""
-        # convert arguments to unicode using preferred encoding
-        self.uargv = [''] + list(arguments) if arguments else get_unicode_argv()
+        # arguments should be unicode
+        self._uargv = list(arguments or ())
         # first parse a logfile argument, if any
-        for args in self.uargv:
+        for args in self._uargv:
             if args[:9] == u'--logfile':
                 logfile = args[10:]
                 break
@@ -356,22 +335,22 @@ class Settings(object):
         self._logger = get_logger(logfile)
         self._temp_dir = temp_dir
         # create state path if needed
-        if not os.path.exists(state_path):
-            os.makedirs(state_path)
+        if not os.path.exists(STATE_PATH):
+            os.makedirs(STATE_PATH)
         # create user config file if needed
         if not os.path.exists(self.user_config_path):
             try:
-                os.makedirs(user_config_dir)
+                os.makedirs(USER_CONFIG_DIR)
             except OSError:
                 pass
             self.build_default_config_file(self.user_config_path)
         # create @: drive if not present
-        if not os.path.exists(program_path):
-            os.makedirs(program_path)
+        if not os.path.exists(PROGRAM_PATH):
+            os.makedirs(PROGRAM_PATH)
             # unpack bundled programs
-            programs.store_bundled_programs(program_path)
+            store_bundled_programs(PROGRAM_PATH)
         # store options in options dictionary
-        self._options = self._retrieve_options(self.uargv)
+        self._options = self._retrieve_options(self._uargv)
         # prepare global logger for use by main program
         self._prepare_logging()
         # initial validations
@@ -399,7 +378,7 @@ class Settings(object):
     def _retrieve_options(self, uargv):
         """Retrieve command line and option file options."""
         # convert command line arguments to string dictionary form
-        remaining = self._get_arguments(uargv[1:])
+        remaining = self._get_arguments(uargv)
         # unpack any packages
         package = self._parse_package(remaining)
         # get preset groups from specified config file
@@ -434,9 +413,10 @@ class Settings(object):
                 value = None
         return value
 
-    def get_session_parameters(self):
+    @property
+    def session_params(self):
         """Return a dictionary of parameters for the Session object."""
-        current_device, mount_dict = self.get_drives(False)
+        current_device, mount_dict = self._get_drives(False)
         if self.get('resume'):
             return {}
         pcjr_term = self.get('pcjr-term')
@@ -453,49 +433,48 @@ class Settings(object):
         max_list = self.get('max-memory')
         max_list[1] = max_list[1]*16 if max_list[1] else max_list[0]
         max_list[0] = max_list[0] or max_list[1]
-        current_device, mount_dict = self.get_drives()
+        current_device, mount_dict = self._get_drives()
+        codepage_dict = data.read_codepage(self.get('codepage'))
         return {
             'syntax': self.get('syntax'),
-            'debug': self.uargv if self.get('debug') else None,
             'output_file': self.get(b'output'),
             'append': self.get(b'append'),
             'input_file': self.get(b'input'),
             'video': self.get('video'),
-            'codepage': self.get('codepage') or '437',
+            'codepage': codepage_dict,
             'box_protect': not self.get('nobox'),
             'monitor': self.get('monitor'),
             # screen settings
-            'screen_aspect': (3072, 2000) if self.get('video') == 'tandy' else (4, 3),
+            'aspect_ratio': (3072, 2000) if self.get('video') == 'tandy' else (4, 3),
             'text_width': self.get('text-width'),
             'video_memory': self.get('video-memory'),
-            'cga_low': self.get('cga-low'),
+            'low_intensity': self.get('cga-low'),
             'mono_tint': self.get('mono-tint'),
-            'font': self.get('font'),
+            'font': data.read_fonts(codepage_dict, self.get('font'), warn=self.get('debug')),
             # inserted keystrokes
             'keys': self.get('keys').encode('utf-8').decode('string_escape').decode('utf-8'),
             # find program for PCjr TERM command
-            'pcjr_term': pcjr_term,
+            'term': pcjr_term,
             'shell': self.get('shell'),
             'double': self.get('double'),
             # device settings
-            'device_params': device_params,
+            'devices': device_params,
             'current_device': current_device,
-            'mount_dict': mount_dict,
-            'print_trigger': self.get('print-trigger'),
+            'mount': mount_dict,
             'temp_dir': self._temp_dir,
             'serial_buffer_size': self.get('serial-buffer-size'),
             # text file parameters
             'utf8': self.get('utf8'),
             'universal': not self.get('strict-newline'),
-            # attach to standard I/O (for filter interface)
-            'stdio': (self.get(b'interface') == u'none'),
+            # attach to standard I/O if no interface (for filter interface)
+            'stdio': True,
             # keyboard settings
-            'ignore_caps': not self.get('capture-caps'),
             'ctrl_c_is_break': self.get('ctrl-c-break'),
             # program parameters
             'max_list_line': 65535 if not self.get('strict-hidden-lines') else 65530,
             'allow_protect': self.get('strict-protect'),
             'allow_code_poke': self.get('allow-code-poke'),
+            'rebuild_offsets': not self.get('convert'),
             # max available memory to BASIC (set by /m)
             'max_memory': min(max_list) or 65534,
             # maximum record length (-s)
@@ -506,57 +485,78 @@ class Settings(object):
             'reserved_memory': self.get('reserved-memory'),
             'peek_values': peek_values,
             'extension': self.get('extension'),
-            'catch_exceptions': self.get('catch-exceptions'),
+            # ignore key buffer in console-based interfaces, to allow pasting text in console
+            'check_keybuffer_full': self.get('interface') not in ('cli', 'text', 'ansi', 'curses'),
+            # following GW, don't write greeting for redirected input or command-line filter run
+            'greeting': (not self.get('input') and not self.get('interface') == 'none'),
         }
 
-    def get_video_parameters(self):
+    def _get_video_parameters(self):
         """Return a dictionary of parameters for the video plugin."""
         return {
-            'force_display_size': self.get('dimensions'),
-            'aspect': self.get('aspect'),
+            'dimensions': self.get('dimensions'),
+            'aspect_ratio': self.get('aspect'),
             'border_width': self.get('border'),
-            'force_native_pixel': (self.get('scaling') == 'native'),
+            'scaling': self.get('scaling'),
             'fullscreen': self.get('fullscreen'),
-            'smooth': (self.get('scaling') == 'smooth'),
-            'nokill': self.get('nokill'),
-            'altgr': self.get('altgr'),
+            'alt_f4_quits': not self.get('nokill'),
             'caption': self.get('caption'),
-            'composite_monitor': (self.get('monitor') == 'composite'),
-            'composite_card': self.get('video'),
-            'copy_paste': self.get('copy-paste'),
-            'pen': self.get('pen'),
+            'mouse_clipboard': self.get('mouse-clipboard'),
             'icon': ICON,
+            'wait': self.get('wait'),
             }
 
-    def get_audio_parameters(self):
+    def _get_audio_parameters(self):
         """Return a dictionary of parameters for the audio plugin."""
         return {}
 
-    def get_state_file(self):
+    def _get_state_file(self):
         """Name of state file"""
         state_name = self.get('state') or self.state_name
         if not os.path.exists(state_name):
-            state_name = os.path.join(state_path, state_name)
+            state_name = os.path.join(STATE_PATH, state_name)
         return state_name
 
-    def get_interfaces(self):
-        """Return name of interface plugin."""
-        interface = self.get('interface')
-        if interface == 'none':
-            return None
-        return interface or 'graphical', self.get('sound-engine')
+    @property
+    def interface(self):
+        """Run with interface."""
+        return self.get('interface') != 'none'
 
-    def get_launch_parameters(self):
-        """Return a dictionary of launch parameters."""
+    @property
+    def iface_params(self):
+        """Dict of interface parameters."""
+        interface = self.get('interface')
+        # categorical interfaces
+        categories = {
+            # (video, audio), in order of preference
+            'text': ('curses', 'ansi'),
+            'graphical': ('sdl2', 'pygame'),
+        }
+        if not interface:
+            # default: try graphical first, then text, then cli
+            iface_list = categories['graphical'] + categories['text'] + ('cli',)
+        else:
+            try:
+                iface_list = categories[interface]
+            except KeyError:
+                iface_list = (interface,)
+        iface_params = {
+            'try_interfaces': iface_list,
+            'audio_override': self.get('sound-engine'),
+        }
+        iface_params.update(self._get_video_parameters())
+        iface_params.update(self._get_audio_parameters())
+        return iface_params
+
+    @property
+    def launch_params(self):
+        """Dict of launch parameters."""
         # build list of commands to execute on session startup
         commands = []
         if not self.get('resume'):
             run = (self.get(0) != '' and self.get('load') == '') or (self.get('run') != '')
             cmd = self.get('exec')
-            # following GW, don't write greeting for redirected input
-            # or command-line filter run
-            if (not run and not cmd and not self.get('input') and not self.get('interface') == 'none'):
-                commands.append(GREETING)
+            # note that executing commands (or RUN) will suppress greeting
             if cmd:
                 commands.append(cmd)
             if run:
@@ -564,16 +564,24 @@ class Settings(object):
             if self.get('quit'):
                 commands.append('SYSTEM')
         launch_params = {
-            'wait': self.get('wait'),
             'prog': self.get('run') or self.get('load') or self.get(0),
             'resume': self.get('resume'),
-            'state_file': self.get_state_file(),
+            'state_file': self._get_state_file(),
             'commands': commands,
+            'debug': self.get('debug'),
             }
-        launch_params.update(self.get_session_parameters())
+        launch_params.update(self.session_params)
         return launch_params
 
-    def get_drives(self, get_default=True):
+    @property
+    def guard_params(self):
+        """Dict of exception guard parameters."""
+        return {
+            'uargv': self._uargv,
+            'log_dir': STATE_PATH,
+            }
+
+    def _get_drives(self, get_default=True):
         """Assign disk locations to disk devices."""
         mount_dict = {}
         # always get current device
@@ -620,7 +628,7 @@ class Settings(object):
         else:
             mount_dict[b'Z'] = (os.getcwdu(), u'')
         # directory for bundled BASIC programs accessible through @:
-        mount_dict[b'@'] = (program_path, u'')
+        mount_dict[b'@'] = (PROGRAM_PATH, u'')
         # build mount dictionary
         mount_list = self.get('mount', get_default)
         if mount_list:
@@ -638,7 +646,8 @@ class Settings(object):
                     logging.warning(u'Could not mount %s: %s', a, unicode(e))
         return current_device, mount_dict
 
-    def get_converter_parameters(self):
+    @property
+    def conv_params(self):
         """Get parameters for file conversion."""
         # conversion output
         # first arg, if given, is mode; second arg, if given, is outfile
@@ -649,16 +658,25 @@ class Settings(object):
         name_out = self.get(1)
         return mode, name_in, name_out
 
-    def get_command(self):
-        """Get operating mode."""
-        if self.get('version'):
-            return 'version'
-        elif self.get('help'):
-            # in help mode, print usage and exit
-            return 'help'
-        elif self.get('convert'):
-            return 'convert'
-        return None
+    @property
+    def version(self):
+        """Version operating mode."""
+        return self.get('version')
+
+    @property
+    def help(self):
+        """Help operating mode."""
+        return self.get('help')
+
+    @property
+    def convert(self):
+        """Converter operating mode."""
+        return self.get('convert')
+
+    @property
+    def debug(self):
+        """Debugging mode."""
+        return self.get('debug')
 
     def _append_short_args(self, args, key, value):
         """Append short arguments and value to dict."""
@@ -702,56 +720,6 @@ class Settings(object):
                 self._logger.warning(u'Ignored unrecognised option `=%s`', value)
         for k in args.keys():
             self._logger.info(u'args(%s)=%s', str(k), str(args[k]))
-        return args
-
-    def _get_arguments2(self, argv):
-        """Convert arguments to dictionary."""
-        args = {}
-        pos = 0
-        # Modified by dani on 20170719, in order to ignore the extra positional arguments that pycharm add in debug mode
-        pycharm_args = ['--multiproc','--qt-support','--client','127.0.0.1','--port','--file','--qt-support=auto']
-        for arg in argv:
-            #self._logger.warning(u'Reading arg "=%s"', arg)
-            if arg not in pycharm_args and 'pcbasic.py' not in arg and "PyCharm" not in arg:
-                key, value = safe_split(arg, u'=')
-                if key:
-                    if key[0:2] == u'--':
-                        if key[2:]:
-                            append_arg(args, key[2:], value)
-                    elif key[0] == u'-':
-                        for i, short_arg in enumerate(key[1:]):
-                            try:
-                                skey, svalue = safe_split(self.short_args[short_arg], u'=')
-                                if not svalue and not skey:
-                                    continue
-                                if (not svalue) and i == len(key)-2:
-                                    # assign value to last argument specified
-                                    append_arg(args, skey, value)
-                                else:
-                                    append_arg(args, skey, svalue)
-                            except KeyError:
-                                self._logger.warning(u'Ignored unrecognised option "-%s"', short_arg)
-                    elif pos < self.positional:
-                        # positional argument
-                        # Detect a pycharm thread argument
-                        try:
-                            testf=int(arg)
-                            argisint=True
-                            self._logger.warning(u'Ignored pycharm int args "=%s"', arg)
-                        except:
-                            argisint = False
-
-                        if not argisint:
-                            args[pos] = arg
-                            pos += 1
-                    else:
-                        self._logger.warning(u'Ignored extra positional argument "%s"', arg)
-                else:
-                    self._logger.warning(u'Ignored unrecognised option "=%s"', value)
-            else:
-                self._logger.warning(u'Ignored pycharm args "=%s"', arg)
-        if ('run' in args.keys()) and (0 in args.keys()):
-            args.pop(0)
         return args
 
     def _parse_presets(self, remaining, conf_dict):
@@ -956,7 +924,7 @@ class Settings(object):
         u"[pcbasic]\n"
         u"# Use the [pcbasic] section to specify options you want to be enabled by default.\n"
         u"# See the documentation or run pcbasic -h for a list of available options.\n"
-        u"# for example (for version '%s'):\n" % __version__)
+        u"# for example (for version '%s'):\n" % VERSION)
         footer = (
         u"\n\n# To add presets, create a section header between brackets and put the \n"
         u"# options you need below it, like this:\n"

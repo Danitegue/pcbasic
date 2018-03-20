@@ -5,8 +5,8 @@ PC-BASIC - GW-BASIC/BASICA/Cartridge BASIC compatible interpreter
 This file is released under the GNU GPL version 3 or later.
 """
 
-from .codepage import codepages
-from .font import fonts
-from .session import Session
+from .api import Session
+from .metadata import VERSION as __version__
+from .debug import DebugSession
 from .base.error import *
 from .base import signals, scancode, eascii

@@ -129,7 +129,6 @@ class WindowsShell(ShellBase):
         """Run a SHELL subprocess."""
         shell_output = []
         cmd = self.command
-
         if command:
             cmd += u' /C ' + self.codepage.str_to_unicode(command)
         if DosLogging:
@@ -143,20 +142,21 @@ class WindowsShell(ShellBase):
         # in win x64 the command only works if file1 exist.
 
         # Delete multiple spaces and split by spaces
-        command_spl = ' '.join(command.split()).split(" ")
-        if "copy" in (command_spl[0].lower()) and "+" in (command_spl[1]) and len(command_spl)==3:
-            if DosLogging:
-                logging.debug("dos.py, launch, emulating the actions of the command shell copy file1+file2 dest from python: file1 will be created if it does not exist")
-            files_to_append = command_spl[1].split("+")
-            f0=open(files_to_append[0],"a");f0.close() #This will create the file if it does not exist.
-            fd=open(command_spl[2],"a") #Open destination file
-            for path_i in files_to_append: #Append every file contents into destination file
-                fi=open(path_i,"r")
-                fd.write(fi.read())
-                fi.close()
-            fd.close()
-            #Once all done, exit of the SHELL funciton
-            return
+
+        # command_spl = ' '.join(command.split()).split(" ")
+        # if "copy" in (command_spl[0].lower()) and "+" in (command_spl[1]) and len(command_spl)==3:
+        #     if DosLogging:
+        #         logging.debug("dos.py, launch, emulating the actions of the command shell copy file1+file2 dest from python: file1 will be created if it does not exist")
+        #     files_to_append = command_spl[1].split("+")
+        #     f0=open(files_to_append[0],"a");f0.close() #This will create the file if it does not exist.
+        #     fd=open(command_spl[2],"a") #Open destination file
+        #     for path_i in files_to_append: #Append every file contents into destination file
+        #         fi=open(path_i,"r")
+        #         fd.write(fi.read())
+        #         fi.close()
+        #     fd.close()
+        #     #Once all done, exit of the SHELL funciton
+        #     return
 
         p = subprocess.Popen(cmd.encode(self._encoding).split(), stdin=subprocess.PIPE,
                     stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
@@ -167,7 +167,7 @@ class WindowsShell(ShellBase):
         errp.daemon = True
         errp.start()
         word = b''
-        while (p.poll() is None) or shell_output:
+        while p.poll() is None or shell_output:
             if shell_output:
                 lines, shell_output[:] = b''.join(shell_output).split('\r\n'), []
                 last = lines.pop()
@@ -181,7 +181,7 @@ class WindowsShell(ShellBase):
                 continue
             try:
                 # expand=False suppresses key macros
-                c = self.keyboard.get_char(expand=False)
+                c = self.keyboard.get_fullchar(expand=False)
             except error.Break:
                 pass
             if c in (b'\r', b'\n'):

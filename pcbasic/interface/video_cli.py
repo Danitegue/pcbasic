@@ -2,51 +2,74 @@
 PC-BASIC - video_cli.py
 Command-line interface
 
-(c) 2013, 2014, 2015, 2016 Rob Hagemans
+(c) 2013--2018 Rob Hagemans
 This file is released under the GNU GPL version 3 or later.
 """
 
 import sys
 import time
-import logging
 import threading
 import Queue
 import platform
 
-from . import base
 from . import ansi
-
+from .video import VideoPlugin
+from .base import video_plugins, InitFailed
 from ..basic.base import signals
 from ..basic.base import scancode
 from ..basic.base.eascii import as_unicode as uea
-
-encoding = sys.stdin.encoding or 'utf-8'
 
 if platform.system() == 'Windows':
     from .. import ansipipe
     tty = ansipipe
     termios = ansipipe
     # Ctrl+Z to exit
-    eof = uea.CTRL_z
+    EOF = uea.CTRL_z
 else:
     import tty, termios
     # Ctrl+D to exit
-    eof = uea.CTRL_d
+    EOF = uea.CTRL_d
 
 
-class VideoCLI(base.VideoPlugin):
+ENCODING = sys.stdin.encoding or 'utf-8'
+
+# escape sequence to scancode
+ESC_TO_SCAN = {
+    ansi.F1: scancode.F1,  ansi.F2: scancode.F2,  ansi.F3: scancode.F3,  ansi.F4: scancode.F4,
+    ansi.F1_OLD: scancode.F1,  ansi.F2_OLD: scancode.F2,  ansi.F3_OLD: scancode.F3,
+    ansi.F4_OLD: scancode.F4,  ansi.F5: scancode.F5,  ansi.F6: scancode.F6,  ansi.F7: scancode.F7,
+    ansi.F8: scancode.F8,  ansi.F9: scancode.F9,  ansi.F10: scancode.F10,  ansi.F11: scancode.F11,
+    ansi.F12: scancode.F12,  ansi.END: scancode.END,  ansi.END2: scancode.END,
+    ansi.HOME: scancode.HOME,  ansi.HOME2: scancode.HOME,  ansi.UP: scancode.UP,
+    ansi.DOWN: scancode.DOWN,  ansi.RIGHT: scancode.RIGHT,  ansi.LEFT: scancode.LEFT,
+    ansi.INSERT: scancode.INSERT,  ansi.DELETE: scancode.DELETE,  ansi.PAGEUP: scancode.PAGEUP,
+    ansi.PAGEDOWN: scancode.PAGEDOWN,
+    }
+
+# escape sequence to e-ASCII
+ESC_TO_EASCII = {
+    ansi.F1: uea.F1,  ansi.F2: uea.F2,  ansi.F3: uea.F3,  ansi.F4: uea.F4,  ansi.F1_OLD: uea.F1,
+    ansi.F2_OLD: uea.F2,  ansi.F3_OLD: uea.F3,  ansi.F4_OLD: uea.F4,  ansi.F5: uea.F5,
+    ansi.F6: uea.F6,  ansi.F7: uea.F7,  ansi.F8: uea.F8,  ansi.F9: uea.F9,  ansi.F10: uea.F10,
+    ansi.F11: uea.F11,  ansi.F12: uea.F12,  ansi.END: uea.END,  ansi.END2: uea.END,
+    ansi.HOME: uea.HOME,  ansi.HOME2: uea.HOME,  ansi.UP: uea.UP,  ansi.DOWN: uea.DOWN,
+    ansi.RIGHT: uea.RIGHT,  ansi.LEFT: uea.LEFT,  ansi.INSERT: uea.INSERT,
+    ansi.DELETE: uea.DELETE,  ansi.PAGEUP: uea.PAGEUP,  ansi.PAGEDOWN: uea.PAGEDOWN,
+    }
+
+
+@video_plugins.register('cli')
+class VideoCLI(VideoPlugin):
     """Command-line interface."""
 
     def __init__(self, input_queue, video_queue, **kwargs):
         """Initialise command-line interface."""
         try:
             if platform.system() not in (b'Darwin',  b'Windows') and not sys.stdin.isatty():
-                logging.warning('Input device is not a terminal. '
-                                'Could not initialise text-based interface.')
-                raise base.InitFailed()
+                raise InitFailed('Text-based interface requires a terminal (tty).')
         except AttributeError:
             pass
-        base.VideoPlugin.__init__(self, input_queue, video_queue)
+        VideoPlugin.__init__(self, input_queue, video_queue)
         self._term_echo_on = True
         self._term_attr = None
         self._term_echo(False)
@@ -68,12 +91,12 @@ class VideoCLI(base.VideoPlugin):
 
     def __exit__(self, type, value, traceback):
         """Close command-line interface."""
-        base.VideoPlugin.__exit__(self, type, value, traceback)
+        VideoPlugin.__exit__(self, type, value, traceback)
         self._term_echo()
         if self.last_col and self.cursor_col != self.last_col:
             sys.stdout.write('\n')
 
-    def _check_display(self):
+    def _work(self):
         """Display update cycle."""
         self._update_position()
 
@@ -84,21 +107,21 @@ class VideoCLI(base.VideoPlugin):
             uc, sc = self.input_handler.get_key()
             if not uc and not sc:
                 break
-            if uc == eof:
+            if uc == EOF:
                 # ctrl-D (unix) / ctrl-Z (windows)
-                self.input_queue.put(signals.Event(signals.KEYB_QUIT))
+                self._input_queue.put(signals.Event(signals.KEYB_QUIT))
             elif uc == u'\x7f':
                 # backspace
-                self.input_queue.put(signals.Event(signals.KEYB_DOWN,
+                self._input_queue.put(signals.Event(signals.KEYB_DOWN,
                                         (uea.BACKSPACE, scancode.BACKSPACE, [])))
             elif sc or uc:
                 # check_full=False to allow pasting chunks of text
-                self.input_queue.put(signals.Event(
-                                        signals.KEYB_DOWN, (uc, sc, [], False)))
+                self._input_queue.put(signals.Event(
+                                        signals.KEYB_DOWN, (uc, sc, [])))
                 if sc == scancode.F12:
                     self.f12_active = True
                 else:
-                    self.input_queue.put(signals.Event(
+                    self._input_queue.put(signals.Event(
                                             signals.KEYB_UP, (scancode.F12,)))
                     self.f12_active = False
 
@@ -118,13 +141,10 @@ class VideoCLI(base.VideoPlugin):
     ###############################################################################
 
 
-    def set_codepage(self, new_codepage):
-        """Set codepage used in sending characters."""
-        self.codepage = new_codepage
-
-    def put_glyph(self, pagenum, row, col, cp, is_fullwidth, fore, back, blink, underline, for_keys):
+    def put_glyph(
+            self, pagenum, row, col, char, is_fullwidth,
+            fore, back, blink, underline, suppress_cli):
         """Put a character at a given position."""
-        char = self.codepage.to_unicode(cp, replace=u' ')
         if char == u'\0':
             char = u' '
         self.text[pagenum][row-1][col-1] = char
@@ -132,10 +152,10 @@ class VideoCLI(base.VideoPlugin):
             self.text[pagenum][row-1][col] = u''
         if self.vpagenum != pagenum:
             return
-        if for_keys:
+        if suppress_cli:
             return
         self._update_position(row, col)
-        sys.stdout.write(char.encode(encoding, 'replace'))
+        sys.stdout.write(char.encode(ENCODING, 'replace'))
         sys.stdout.flush()
         self.last_col += 2 if is_fullwidth else 1
 
@@ -188,7 +208,7 @@ class VideoCLI(base.VideoPlugin):
 
     def _redraw_row(self, row):
         """Draw the stored text in a row."""
-        rowtext = u''.join(self.text[self.vpagenum][row-1]).encode(encoding, 'replace')
+        rowtext = u''.join(self.text[self.vpagenum][row-1]).encode(ENCODING, 'replace')
         sys.stdout.write(rowtext)
         sys.stdout.write(ansi.MOVE_LEFT * len(rowtext))
         sys.stdout.flush()
@@ -269,14 +289,14 @@ class InputHandlerCLI(object):
         while (more > 0) and (cutoff > 0):
             if esc:
                 # return the first recognised escape sequence
-                uc = esc_to_eascii.get(s, '')
-                scan = esc_to_scan.get(s, None)
+                uc = ESC_TO_EASCII.get(s, '')
+                scan = ESC_TO_SCAN.get(s, None)
                 if uc or scan:
                     return uc, scan
             else:
                 # return the first recognised encoding sequence
                 try:
-                    return s.decode(encoding), None
+                    return s.decode(ENCODING), None
                 except UnicodeDecodeError:
                     pass
             # give time for the queue to fill up
@@ -289,69 +309,4 @@ class InputHandlerCLI(object):
             s += c
         # no sequence or decodable string found
         # decode as good as it gets
-        return s.decode(encoding, errors='replace'), None
-
-
-
-# escape sequence to scancode dictionary
-esc_to_scan = {
-    ansi.F1: scancode.F1,
-    ansi.F2: scancode.F2,
-    ansi.F3: scancode.F3,
-    ansi.F4: scancode.F4,
-    ansi.F1_OLD: scancode.F1,
-    ansi.F2_OLD: scancode.F2,
-    ansi.F3_OLD: scancode.F3,
-    ansi.F4_OLD: scancode.F4,
-    ansi.F5: scancode.F5,
-    ansi.F6: scancode.F6,
-    ansi.F7: scancode.F7,
-    ansi.F8: scancode.F8,
-    ansi.F9: scancode.F9,
-    ansi.F10: scancode.F10,
-    ansi.F11: scancode.F11,
-    ansi.F12: scancode.F12,
-    ansi.END: scancode.END,
-    ansi.END2: scancode.END,
-    ansi.HOME: scancode.HOME,
-    ansi.HOME2: scancode.HOME,
-    ansi.UP: scancode.UP,
-    ansi.DOWN: scancode.DOWN,
-    ansi.RIGHT: scancode.RIGHT,
-    ansi.LEFT: scancode.LEFT,
-    ansi.INSERT: scancode.INSERT,
-    ansi.DELETE: scancode.DELETE,
-    ansi.PAGEUP: scancode.PAGEUP,
-    ansi.PAGEDOWN: scancode.PAGEDOWN,
-    }
-
-esc_to_eascii = {
-    ansi.F1: uea.F1,
-    ansi.F2: uea.F2,
-    ansi.F3: uea.F3,
-    ansi.F4: uea.F4,
-    ansi.F1_OLD: uea.F1,
-    ansi.F2_OLD: uea.F2,
-    ansi.F3_OLD: uea.F3,
-    ansi.F4_OLD: uea.F4,
-    ansi.F5: uea.F5,
-    ansi.F6: uea.F6,
-    ansi.F7: uea.F7,
-    ansi.F8: uea.F8,
-    ansi.F9: uea.F9,
-    ansi.F10: uea.F10,
-    ansi.F11: uea.F11,
-    ansi.F12: uea.F12,
-    ansi.END: uea.END,
-    ansi.END2: uea.END,
-    ansi.HOME: uea.HOME,
-    ansi.HOME2: uea.HOME,
-    ansi.UP: uea.UP,
-    ansi.DOWN: uea.DOWN,
-    ansi.RIGHT: uea.RIGHT,
-    ansi.LEFT: uea.LEFT,
-    ansi.INSERT: uea.INSERT,
-    ansi.DELETE: uea.DELETE,
-    ansi.PAGEUP: uea.PAGEUP,
-    ansi.PAGEDOWN: uea.PAGEDOWN,
-    }
+        return s.decode(ENCODING, errors='replace'), None

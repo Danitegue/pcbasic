@@ -50,7 +50,7 @@ PROMPT Brewer $P$G
 
 
 rem * Run the Brewer software with PCBASIC
-%PCBASIC_PATH%\ansipipe-launcher.exe %PYTHON_DIR%\python.exe %PCBASIC_PATH%\run.py --interface=pygame --mount=C:%MOUNT_C%,D:%MOUNT_D% --run=%PROGRAM% --quit=False -f=10 --shell=cmd.exe --scaling=smooth --logfile=%LOG_DIR%\pcbasic_log.txt
+%PYTHON_DIR%\python.exe %PCBASIC_PATH%\run.py --interface=ansi --mount=C:%MOUNT_C%,D:%MOUNT_D% --run=%PROGRAM% --quit=False -f=10 --shell=cmd.exe --scaling=smooth --logfile=%LOG_DIR%\pcbasic_brewer_log.txt
 
 
 rem * On exit, undo the changes what were done above

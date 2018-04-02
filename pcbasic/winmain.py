@@ -59,7 +59,7 @@ def winmain_orig():
 def winmain():
     """Windows console entry point."""
     args = get_unicode_argv()
-    if (('--interface=ansi' in args) or not ('--interface' in args)) and sys.platform == 'win32':
+    if (('--interface=ansi' in args) or not any(['--interface' in i for i in args])) and sys.platform == 'win32':
         startdir = os.path.join(os.path.dirname(os.path.realpath(__file__)))
         launcher = os.path.join(startdir, 'lib', 'ansipipe-launcher.exe')
         if os.path.isfile(launcher):
@@ -75,7 +75,7 @@ def winmain():
             subprocess.call([launcher, sys.executable, '-m', 'pcbasic'] + args[1:])
         else:
             from .main import main
-            main(*args)
+            main(*args[1:])
     else:
         from .main import main
         main(*args[1:])

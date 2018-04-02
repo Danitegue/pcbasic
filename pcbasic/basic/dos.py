@@ -163,12 +163,20 @@ class WindowsShell(ShellBase):
         outp = threading.Thread(target=self._process_stdout, args=(p.stdout, shell_output))
         outp.daemon = True
         outp.start()
+        time.sleep(1)
         errp = threading.Thread(target=self._process_stdout, args=(p.stderr, shell_output))
         errp.daemon = True
         errp.start()
         word = b''
         while p.poll() is None or shell_output:
             if shell_output:
+                #if '\r\n' in b''.join(shell_output): #Windows return
+                #    lines, shell_output[:] = b''.join(shell_output).split('\r\n'), []
+                #elif '\n' in b''.join(shell_output):  #Linux or python script return
+                #    lines, shell_output[:] = b''.join(shell_output).split('\n'), []
+                #elif '\r' in b''.join(shell_output):  #Mac OS return
+                #    lines, shell_output[:] = b''.join(shell_output).split('\r'), []
+                #last = lines.pop()
                 lines, shell_output[:] = b''.join(shell_output).split('\r\n'), []
                 last = lines.pop()
                 for line in lines:
@@ -176,6 +184,7 @@ class WindowsShell(ShellBase):
                     if DosLogging:
                         logging.debug("dos.py, launch, return from shell: %s", str(line).replace('\r', '\\r').replace('\n', '\\n'))
                 self.screen.write(self.codepage.str_from_unicode(last.decode(self._encoding)))
+
             if p.poll() is not None:
                 # drain output then break
                 continue

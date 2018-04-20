@@ -10,7 +10,6 @@ import os
 import sys
 import string
 import logging
-import platform
 import io
 
 from ..base import error
@@ -607,6 +606,13 @@ class Files(object):
             raise error.BASICError(error.DEVICE_UNAVAILABLE)
         return self._devices[dev + b':'], spec
 
+    def get_native_cwd(self):
+        """Get ccurrent working directory on current drive."""
+        # must be a disk device
+        if self._current_device not in self.drive_letters:
+            raise error.BASICError(error.IFC)
+        return self._devices[self._current_device + b':'].get_native_cwd()
+
     def chdir_(self, args):
         """CHDIR: change working directory."""
         name = values.next_string(args)
@@ -638,15 +644,13 @@ class Files(object):
         """NAME: rename file or directory."""
         dev, oldpath = self._get_diskdevice_and_path(values.next_string(args))
         # don't rename open files
-        dev.check_file_not_open(oldpath)
-        oldpath = dev._native_path(oldpath, name_err=error.FILE_NOT_FOUND, isdir=False)
+        # NOTE: we need to check file exists before parsing the next name
+        # to get the same error ssequencing as GW-BASIC
+        dev.require_file_exists_and_not_open(oldpath)
         newdev, newpath = self._get_diskdevice_and_path(values.next_string(args))
         list(args)
         if dev != newdev:
             raise error.BASICError(error.RENAME_ACROSS_DISKS)
-        newpath = dev._native_path(newpath, name_err=None, isdir=False)
-        if os.path.exists(newpath):
-            raise error.BASICError(error.FILE_ALREADY_EXISTS)
         dev.rename(oldpath, newpath)
 
     def kill_(self, args):
@@ -656,9 +660,6 @@ class Files(object):
         if not name:
             raise error.BASICError(error.BAD_FILE_NAME)
         dev, path = self._get_diskdevice_and_path(name)
-        path = dev._native_path(path, name_err=error.FILE_NOT_FOUND, isdir=False)
-        # don't delete open files
-        dev.check_file_not_open(path)
         dev.kill(path)
 
     def files_(self, args):

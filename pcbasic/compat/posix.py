@@ -9,6 +9,7 @@ This file is released under the GNU GPL version 3 or later.
 import os
 import sys
 import locale
+import logging
 import select
 import subprocess
 import fcntl
@@ -20,7 +21,11 @@ import struct
 # there's only one locale setting so best to do it all upfront here
 # NOTE that this affects str.upper() etc.
 # don't do this on Windows as it makes the console codepage different from the stdout encoding ?
-locale.setlocale(locale.LC_ALL, '')
+try:
+    locale.setlocale(locale.LC_ALL, '')
+except locale.Error as e:
+    # mis-configured locale can throw an error here, no need to crash
+    logging.error(e)
 
 from .python2 import which
 
@@ -115,24 +120,23 @@ def key_pressed():
     """Return whether a character is ready to be read from the keyboard."""
     return select.select([sys.stdin], [], [], 0)[0] != []
 
+
+# output buffer for ioctl call
+_sock_size = array.array('i', [0])
+
 def read_all_available(stream):
     """Read all available characters from a stream; nonblocking; None if closed."""
     # this works for everything on unix, and sockets on Windows
     instr = []
-    closed = False
-    # output buffer for ioctl call
-    sock_size = array.array('i', [0])
-    # while buffer has characters/lines to read
-    while select.select([stream], [], [], 0)[0]:
+    # if buffer has characters/lines to read
+    if select.select([stream], [], [], 0)[0]:
         # find number of bytes available
-        fcntl.ioctl(stream, termios.FIONREAD, sock_size)
-        count = sock_size[0]
+        fcntl.ioctl(stream, termios.FIONREAD, _sock_size)
+        count = _sock_size[0]
         # and read them all
         c = stream.read(count)
-        if not c:
-            closed = True
-            break
+        if not c and not instr:
+            # break out, we're closed
+            return None
         instr.append(c)
-    if not instr and closed:
-        return None
     return b''.join(instr)

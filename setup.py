@@ -6,26 +6,41 @@ PC-BASIC setup module.
 This file is released under the GNU GPL version 3 or later.
 """
 
+import sys
+import os
+import platform
+from codecs import open
+from setuptools.command import sdist, build_py
+
+import distutils.cmd
+from setuptools import setup, find_packages, Extension
+#from cx_Freeze import setup, Executable
+
+
+# this is the base MANIFEST.in
+# but I need it to change for different platforms/commands
+DUNMANIFESTIN = """
+include *.md
+include GPL3.txt
+include doc/*
+include pcbasic/data/USAGE.txt
+include pcbasic/data/*/*
+"""
+#
+HERE = os.path.abspath(os.path.dirname(__file__))
+
+
 ###############################################################################
 # get descriptions and version number
 
-from codecs import open
-from os import path
-
 # obtain metadata without importing the package (to avoid breaking setup)
-with open(path.join(
-        path.abspath(path.dirname(__file__)),
-        'pcbasic', 'basic', 'metadata.py'), encoding='utf-8') as f:
+with open(os.path.join(HERE, 'pcbasic', 'metadata.py'), encoding='utf-8') as f:
     exec(f.read())
 
 
 ###############################################################################
 # implement build_docs command
 # see http://seasonofcode.com/posts/how-to-add-custom-build-steps-and-commands-to-setup-py.html
-
-import setuptools.command.sdist
-import distutils.cmd
-
 
 class BuildDocCommand(distutils.cmd.Command):
     """ Command to build the documentation."""
@@ -47,32 +62,80 @@ class BuildDocCommand(distutils.cmd.Command):
         pass
 
 
-class SDistCommand(setuptools.command.sdist.sdist):
-    """ Custom sdist command. """
+class SDistCommand(sdist.sdist):
+    """Custom sdist command."""
 
     def run(self):
-        """ Run sdist command. """
+        """Run sdist command."""
+        with open(os.path.join(HERE, 'MANIFEST.in'), 'w') as f:
+            f.write(DUNMANIFESTIN)
+            f.write(
+                'include pcbasic/lib/README.md\n'
+                'include pcbasic/compat/*.c\n'
+                'prune test\n'
+            )
         self.run_command('build_docs')
-        setuptools.command.sdist.sdist.run(self)
+        sdist.sdist.run(self)
+        os.remove(os.path.join(HERE, 'MANIFEST.in'))
+
+
+class SDistDevCommand(sdist.sdist):
+    """Custom sdist_dev command."""
+
+    def run(self):
+        """Run sdist_dev command."""
+        with open(os.path.join(HERE, 'MANIFEST.in'), 'w') as f:
+            f.write(DUNMANIFESTIN)
+            f.write(
+                'include pcbasic/lib/*\n'
+                'include pcbasic/lib/*/*\n'
+                'include pcbasic/compat/*.c\n'
+                'recursive-include test *'
+            )
+        self.run_command('build_docs')
+        sdist.sdist.run(self)
+        os.remove(os.path.join(HERE, 'MANIFEST.in'))
+
+
+class BuildPyCommand(build_py.build_py):
+    """Custom build_py command."""
+
+    def run(self):
+        """Run build_py command."""
+        with open(os.path.join(HERE, 'MANIFEST.in'), 'w') as f:
+            f.write(DUNMANIFESTIN)
+            f.write('prune test\n')
+            # include DLLs on Windows
+            if sys.platform == 'win32':
+                if platform.architecture()[0] == '64bit':
+                    f.write('include pcbasic/lib/win32_x64/*.dll\n')
+                else:
+                    f.write('include pcbasic/lib/win32_x86/*.dll\n')
+        build_py.build_py.run(self)
+        os.remove(os.path.join(HERE, 'MANIFEST.in'))
 
 
 ###############################################################################
 # metadata
 # see https://github.com/pypa/sampleproject
 
-from setuptools import setup, find_packages
-#from cx_Freeze import setup, Executable
-import platform
-
 # platform-specific settings
-if platform.system() == 'Windows':
-    platform_specific_requirements = ['pywin32']
-    console_scripts = ['pcbasic=pcbasic:winmain']
+if sys.platform == 'win32':
+    platform_specific_requirements = []
+    console_scripts = ['pcbasic=pcbasic:main']
     gui_scripts = ['pcbasicw=pcbasic:main']
+    # use different names for 32- and 64-bit pyds to allow them to stay side-by-side in place
+    if platform.architecture()[0] == '32bit':
+        console_name = 'win32_x86_console'
+    else:
+        console_name = 'win32_x64_console'
+    ext_modules = [Extension('pcbasic.compat.' + console_name, ['pcbasic/compat/win32_console.c'])]
 else:
-    platform_specific_requirements = ['pexpect']
+    platform_specific_requirements = []
     console_scripts = ['pcbasic=pcbasic:main']
     gui_scripts = []
+    ext_modules = []
+
 
 setup(
 
@@ -114,6 +177,8 @@ setup(
             ],
     },
 
+    ext_modules=ext_modules,
+
     include_package_data=True,
 
     # requirements
@@ -141,6 +206,8 @@ setup(
     cmdclass={
         'build_docs': BuildDocCommand,
         'sdist': SDistCommand,
+        'sdist_dev': SDistDevCommand,
+        'build_py': BuildPyCommand,
     },
 
     # cx_Freeze options

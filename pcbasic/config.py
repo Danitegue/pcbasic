@@ -747,7 +747,7 @@ class Settings(object):
                 else:
                     self._logger.warning(u'Ignored surplus positional argument `%s`', arg)
             else:
-                self._logger.warning(u'Ignored unrecognised option `=%s`', value)
+                self._logger.info(u'Ignored unrecognised option `=%s`', value)
         for k in args.keys():
             self._logger.info(u'args(%s)=%s', str(k), str(args[k]))
         return args

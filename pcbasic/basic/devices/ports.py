@@ -74,7 +74,7 @@ class COMDevice(devicebase.Device):
         """Open a file on COMn: """
         if not self._serial:
             raise error.BASICError(error.DEVICE_UNAVAILABLE)
-        logging.debug("Opening a file on COM port, as file number %s", str(number))
+        logging.info("Opening a file on COM port, as file number %s", str(number))
         # PE setting not implemented
         speed, parity, bytesize, stop, rs, cs, ds, cd, lf, _ = self._parse_params(param)
         # open the COM port
@@ -325,7 +325,7 @@ class COMFile(devicebase.TextFileBase):
         # to be attached to the next
         self._input_last = b''
         self.is_open = True
-        self.log_COM_Messages=True
+        self.log_serial_msg=True
 
     def close(self):
         """Close the file and the port."""
@@ -341,7 +341,7 @@ class COMFile(devicebase.TextFileBase):
                 c, self.last = self.fhandle.read(1), c
             if c:
                 s.append(c)
-        if len(s)>0 and self.log_COM_Messages:
+        if len(s)>0 and self.log_serial_msg:
             free = self.lof()
             logging.debug("ports.py, COMFile, read_raw, read: %s, space in input buffer=%s",
                           str(''.join(s)).replace('\r', '\\r').replace('\n', '\\n').replace('\x00', '\\x00'), str(free))
@@ -358,7 +358,7 @@ class COMFile(devicebase.TextFileBase):
                 c = self.read_raw(1)
             if c:
                 s.append(c)
-        if len(s) > 0 and self.log_COM_Messages:
+        if len(s) > 0 and self.log_serial_msg:
             free = self.lof()
             logging.debug("ports.py, COMFile, read, read: %s, space in input buffer=%s",
                           str(''.join(s)).replace('\r', '\\r').replace('\n', '\\n').replace('\x00', '\\x00'), str(free))
@@ -373,7 +373,7 @@ class COMFile(devicebase.TextFileBase):
                 break
             if c:
                 out.append(c)
-        if len(out) > 0 and self.log_COM_Messages:
+        if len(out) > 0 and self.log_serial_msg:
             free = self.lof()
             logging.debug("ports.py, COMFile, read_line, read: %s, space in input buffer=%s",
                           str(''.join(out)).replace('\r', '\\r').replace('\n', '\\n').replace('\x00', '\\x00'), str(free))
@@ -387,7 +387,7 @@ class COMFile(devicebase.TextFileBase):
         """Write string to port."""
         if self._linefeed:
             s = s.replace(b'\r', b'\r\n')
-        if self.log_COM_Messages:
+        if self.log_serial_msg:
             logging.debug("ports.py, COMFile, write, writting line to com port: %s",
                           str(s).replace('\r', '\\r').replace('\n', '\\n').replace('\x00', '\\x00'))
         with safe_serial():

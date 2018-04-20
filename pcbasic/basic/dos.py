@@ -86,7 +86,7 @@ class Shell(object):
         self._codepage = codepage
         self._last_command = deque()
         self._encoding = None
-        self._shell_log = True
+        self._log_shell_msg = True
 
     def _process_stdout(self, stream, output):
         """Retrieve SHELL output and write to console."""
@@ -245,6 +245,6 @@ class Shell(object):
             outstr = outstr.replace(self._enc(u'\x07'), b'')
             outstr = outstr.decode(self._encoding, errors='replace')
             outstr = self._codepage.str_from_unicode(outstr, errors='replace')
-            if self._shell_log:
+            if self._log_shell_msg:
                 logging.debug("dos.py, launch, return from shell: %s",str(outstr).replace('\r', '\\r').replace('\n', '\\n'))
             self._screen.write(outstr)

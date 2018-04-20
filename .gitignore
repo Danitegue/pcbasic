@@ -1,7 +1,6 @@
 *.pyc
 *.pyd
 *.pyo
-*.dll
 .android.*
 USAGE.txt
 doc/

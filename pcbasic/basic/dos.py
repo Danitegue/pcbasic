@@ -110,6 +110,8 @@ class Shell(object):
             cmd += [SHELL_COMMAND_SWITCH, self._codepage.str_to_unicode(command)]
         # get working directory; also raises IFC if current_device is CAS1
         work_dir = self._files.get_native_cwd()
+        if self._log_shell_msg:
+            logging.debug("dos.py, launch, running shell command: %s",str(cmd).replace('\r', '\\r').replace('\n', '\\n'))
         try:
             p = Popen(
                     cmd, shell=False, cwd=work_dir,
@@ -246,5 +248,5 @@ class Shell(object):
             outstr = outstr.decode(self._encoding, errors='replace')
             outstr = self._codepage.str_from_unicode(outstr, errors='replace')
             if self._log_shell_msg:
-                logging.debug("dos.py, launch, return from shell: %s",str(outstr).replace('\r', '\\r').replace('\n', '\\n'))
+                logging.debug("dos.py, launch, return from shell: %s",str(outstr).replace('\r', '\\r'))
             self._screen.write(outstr)

@@ -9,14 +9,16 @@ This file is released under the GNU GPL version 3 or later.
 import struct
 from contextlib import contextmanager
 from collections import deque
+import logging
 
 from ..base import error
 from ..base import tokens as tk
 from .. import values
 from . import scalars
 from . import arrays
-import logging
-trace_vars=[]
+
+trace_vars=[] # DS -> This is to add in the log file the values of a determined variable.
+#Every time the value is changed, an entry will be added to the log. Example trace_vars=["A$"]
 
 # Data Segment Map - default situation
 # addr      size

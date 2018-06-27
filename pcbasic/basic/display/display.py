@@ -130,14 +130,14 @@ class Display(object):
 
     def __init__(self, queues, values, input_methods, memory,
                 initial_width, video_mem_size, capabilities, monitor, sound, io_streams,
-                low_intensity, mono_tint, screen_aspect, codepage, fonts):
+                low_intensity, screen_aspect, codepage, fonts):
         """Initialise the display."""
         self.queues = queues
         self._values = values
         self._memory = memory
         # low level settings
         self.video = Video(
-                capabilities, monitor, mono_tint, low_intensity, screen_aspect, video_mem_size)
+                capabilities, monitor, low_intensity, screen_aspect, video_mem_size)
         self.capabilities = self.video.capabilities
         # video mode settings
         self._mode_nr, self.colorswitch, self.apagenum, self.vpagenum = 0, 1, 0, 0
@@ -244,13 +244,14 @@ class Display(object):
                                     self.mode.num_pages, self.mode.bitsperpixel)
         else:
             self.pixels = None
+        # set active page & visible page, counting from 0.
+        self.set_page(new_vpagenum, new_apagenum)
         # initialise text screen
+        # NOTE this requires active page to have beet set!
         self.text_screen.init_mode(self.mode, self.pixels, self.attr, new_vpagenum, new_apagenum)
         # restore emulated video memory in new mode
         if save_mem:
             self.mode.set_all_memory(self, save_mem)
-        # set active page & visible page, counting from 0.
-        self.set_page(new_vpagenum, new_apagenum)
         # center graphics cursor, reset window, etc.
         self.drawing.init_mode(self.mode, self.text_screen.text, self.pixels)
         self.drawing.set_attr(self.attr)

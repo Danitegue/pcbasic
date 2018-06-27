@@ -51,15 +51,14 @@ class Implementation(object):
             syntax=u'advanced', double=False, term=u'', shell=u'',
             output_streams=sys.stdout, input_streams=sys.stdin,
             codepage=None, box_protect=True, font=None, text_width=80,
-            video=u'cga', monitor=u'rgb', aspect_ratio=(4, 3),
-            mono_tint=(0, 255, 0), low_intensity=False,
-            devices=None, current_device=u'Z:', mount=None, utf8=False, universal=True,
+            video=u'cga', monitor=u'rgb', aspect_ratio=(4, 3), low_intensity=False,
+            devices=None, current_device=u'Z:', mount=None, utf8=False, soft_linefeed=False,
             keys=u'', check_keybuffer_full=True, ctrl_c_is_break=True,
-            max_list_line=65535, allow_protect=False,
+            hide_listing=None, hide_protected=False,
             peek_values=None, allow_code_poke=False, rebuild_offsets=True,
             max_memory=65534, reserved_memory=3429, video_memory=262144,
             serial_buffer_size=128, max_reclen=128, max_files=3,
-            temp_dir=u'', extension=None, greeting=True,
+            extension=None, greeting=True,
             ):
         """Initialise the interpreter session."""
         ######################################################################
@@ -96,7 +95,7 @@ class Implementation(object):
         # initialise the program
         bytecode = codestream.TokenisedStream(self.memory.code_start)
         self.program = program.Program(
-                self.tokeniser, self.lister, max_list_line, allow_protect,
+                self.tokeniser, self.lister, hide_listing, hide_protected,
                 allow_code_poke, self.memory, bytecode, rebuild_offsets)
         # register all data segment users
         self.memory.set_buffers(self.program)
@@ -113,14 +112,14 @@ class Implementation(object):
         self.io_streams = iostreams.IOStreams(
                 self.queues, self.codepage, input_streams, output_streams, utf8)
         # initialise sound queue
-        self.sound = sound.Sound(self.queues, self.values, syntax)
+        self.sound = sound.Sound(self.queues, self.values, self.memory, syntax)
         # Sound is needed for the beeps on \a
         # InputMethods is needed for wait() in graphics
         self.display = display.Display(
                 self.queues, self.values, self.queues,
                 self.memory, text_width, video_memory, video, monitor,
                 self.sound, self.io_streams,
-                low_intensity, mono_tint, aspect_ratio,
+                low_intensity, aspect_ratio,
                 self.codepage, font)
         self.screen = self.display.text_screen
         self.drawing = self.display.drawing
@@ -141,7 +140,7 @@ class Implementation(object):
         self.files = Files(
                 self.values, self.memory, self.queues, self.keyboard, self.display,
                 max_files, max_reclen, serial_buffer_size,
-                devices, current_device, mount, temp_dir, utf8, universal)
+                devices, current_device, mount, utf8, not soft_linefeed)
         # set up the SHELL command
         # Files needed for current disk device
         self.shell = dos.Shell(
@@ -188,8 +187,6 @@ class Implementation(object):
         self.interpreter = interpreter.Interpreter(
                 self.queues, self.screen, self.files, self.sound,
                 self.values, self.memory, self.program, self.parser, self.basic_events)
-        # PLAY parser
-        self.play_parser = sound.PlayParser(self.sound, self.memory, self.values)
         ######################################################################
         # callbacks
         ######################################################################
@@ -447,7 +444,7 @@ class Implementation(object):
         # stop all sound
         self.sound.stop_all_sound()
         # reset PLAY state
-        self.play_parser.reset()
+        self.sound.reset_play()
         # reset DRAW state (angle, scale) and current graphics position
         self.drawing.reset()
         # reset random number generator
@@ -599,6 +596,9 @@ class Implementation(object):
                 # don't close files!
                 # RUN
                 self.interpreter.jump(jumpnum, err=error.IFC)
+        # ensure newly allocated strings are not considered temporary
+        # e.g. code strings in the old program become allocated strings in the new
+        self.strings.fix_temporaries()
 
     def save_(self, args):
         """SAVE: save program to a file."""
@@ -731,7 +731,7 @@ class Implementation(object):
         for v in readvar:
             name, indices = v
             word, _ = finp.input_entry(name[-1], allow_past_end=False)
-            value = self.values.from_repr(word, allow_nonnum=False, typechar=name[-1])
+            value = self.values.from_repr(word, allow_nonnum=True, typechar=name[-1])
             if value is None:
                 value = self.values.new(name[-1])
             self.memory.set_variable(name, indices, value)
@@ -758,8 +758,8 @@ class Implementation(object):
             raise error.BASICError(error.TYPE_MISMATCH)
         # read the input
         if finp:
-            line = finp.read_line()
-            if line is None:
+            line, cr = finp.read_line()
+            if not line and not cr:
                 raise error.BASICError(error.INPUT_PAST_END)
         else:
             self.interpreter.input_mode = True

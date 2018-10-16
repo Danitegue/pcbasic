@@ -39,7 +39,7 @@ from .devicebase import parse_protocol_string
 class COMDevice(Device):
     """Serial port device (COMn:)."""
 
-    allowed_modes = 'IOAR'
+    allowed_modes = b'IOAR'
 
     def __init__(self, arg, queues, serial_in_size):
         """Initialise COMn: device."""
@@ -47,19 +47,16 @@ class COMDevice(Device):
         # for wait()
         self._queues = queues
         self._serial_in_size = serial_in_size
-        self._url = ''
         self._spec = arg
         self._serial = self._init_serial(arg)
         self.device_file = DeviceSettings()
         # only one file open at a time
         self._file = None
 
-    def open(self, number, param, filetype, mode, access, lock,
-                       reclen, seg, offset, length, field):
+    def open(self, number, param, filetype, mode, access, lock, reclen, seg, offset, length, field):
         """Open a file on COMn: """
         if not self._serial:
             raise error.BASICError(error.DEVICE_UNAVAILABLE)
-        logging.info("ports.py, COMDevice, Opening a file on COM port, as file number %s",str(number))
         # PE setting not implemented
         speed, parity, bytesize, stop, rs, cs, ds, cd, lf, _ = self._parse_params(param)
         # open the COM port
@@ -86,30 +83,32 @@ class COMDevice(Device):
     def _parse_params(self, param):
         """Parse serial port connection parameters """
         max_param = 10
-        param_list = param.upper().split(',')
+        param_list = param.upper().split(b',')
         if len(param_list) > max_param:
             raise error.BASICError(error.BAD_FILE_NAME)
-        param_list += [''] * (max_param-len(param_list))
+        param_list += [b''] * (max_param-len(param_list))
         speed, parity, data, stop = param_list[:4]
         # set speed
-        if speed not in ('75', '110', '150', '300', '600', '1200',
-                          '1800', '2400', '4800', '9600', ''):
+        if speed not in (
+                b'75', b'110', b'150', b'300', b'600', b'1200',
+                b'1800', b'2400', b'4800', b'9600', b''
+            ):
             # Bad file name
             raise error.BASICError(error.BAD_FILE_NAME)
         speed = int(speed) if speed else 300
         # set parity
-        if parity not in ('S', 'M', 'O', 'E', 'N', ''):
+        if parity not in (b'S', b'M', b'O', b'E', b'N', b''):
             raise error.BASICError(error.BAD_FILE_NAME)
-        parity = parity or 'E'
+        parity = parity or b'E'
         # set data bits
-        if data not in ('4', '5', '6', '7', '8', ''):
+        if data not in (b'4', b'5', b'6', b'7', b'8', b''):
             raise error.BASICError(error.BAD_FILE_NAME)
         data = int(data) if data else 7
-        bytesize = data + (parity != 'N')
+        bytesize = data + (parity != b'N')
         if bytesize not in range(5, 9):
             raise error.BASICError(error.BAD_FILE_NAME)
         # set stopbits
-        if stop not in ('1', '2', ''):
+        if stop not in (b'1', b'2', b''):
             raise error.BASICError(error.BAD_FILE_NAME)
         if not stop:
             stop = 2 if (speed in (75, 110)) else 1
@@ -120,23 +119,23 @@ class COMDevice(Device):
             if not named_param:
                 continue
             try:
-                if named_param == 'RS':
+                if named_param == b'RS':
                     # suppress request to send
                     rs = True
-                elif named_param[:2] == 'CS':
+                elif named_param[:2] == b'CS':
                     # set CTS timeout - clear to send
                     # 0 for empty string; BAD FILE NAME if not numeric
                     cs = int(named_param[2:]) if named_param[2:] else 0
-                elif named_param[:2] == 'DS':
+                elif named_param[:2] == b'DS':
                     # set DSR timeout - data set ready
                     ds = int(named_param[2:]) if named_param[2:] else 0
-                elif named_param[:2] == 'CD':
+                elif named_param[:2] == b'CD':
                     # set CD timeout - carrier detect
                     cd = int(named_param[2:]) if named_param[2:] else 0
-                elif named_param == 'LF':
+                elif named_param == b'LF':
                     # send a line feed at each return
                     lf = True
-                elif named_param == 'PE':
+                elif named_param == b'PE':
                     # enable parity checking
                     # not implemented
                     pe = True
@@ -168,29 +167,30 @@ class COMDevice(Device):
         try:
             if not addr and not val:
                 pass
-            elif addr == 'STDIO' or (not addr and val.upper() == 'STDIO'):
-                return SerialStdIO(val.upper() == 'CRLF')
+            elif addr == u'STDIO' or (not addr and val.upper() == u'STDIO'):
+                return SerialStdIO(val.upper() == u'CRLF')
             else:
                 if not serial:
                     logging.warning(
-                            'Could not attach %s to COM device. Module `serial` not available: %s',
-                            spec, logging_msg)
+                        u'Could not attach %s to COM device. Module `serial` not available: %s',
+                        spec, logging_msg
+                    )
                     return None
-                if addr in ('SOCKET', 'RFC2217'):
+                if addr in (u'SOCKET', u'RFC2217'):
                     # throws ValueError if too many :s, caught below
-                    host, socket = val.split(':')
-                    url = '%s://%s:%s' % (addr.lower(), host, socket)
+                    host, socket = val.split(u':')
+                    url = u'%s://%s:%s' % (addr.lower(), host, socket)
                     stream = serial.serial_for_url(url, timeout=0, do_not_open=True)
                     # monkey-patch serial object as SocketSerial does not have this property
                     stream.out_waiting = 0
                     return stream
-                elif addr == 'PORT':
+                elif addr == u'PORT':
                     # port can be e.g. /dev/ttyS1 on Linux or COM1 on Windows.
                     return serial.serial_for_url(val, timeout=0, do_not_open=True)
                 else:
-                    raise ValueError('Invalid protocol `%s`' % (addr,))
+                    raise ValueError(u'Invalid protocol `%s`' % (addr,))
         except (ValueError, EnvironmentError) as e:
-            logging.warning('Could not attach %s to COM device: %s', spec, e)
+            logging.warning(u'Could not attach %s to COM device: %s', spec, e)
         return None
 
     def __getstate__(self):
@@ -209,7 +209,7 @@ class COMDevice(Device):
     def _check_open(self):
         """Open the underlying port if necessary."""
         if not self._serial.is_open:
-            logging.debug('ports.py, COMDevice, _check_open, Seems that the underlying port is not open, oppening it')
+            logging.debug('Opening serial port %s.', self._serial.port)
             self._serial.open()
 
     def _open_serial(self, rs=False, cs=1000, ds=1000, cd=0):
@@ -249,6 +249,10 @@ class COMDevice(Device):
 
     def set_params(self, speed, parity, bytesize, stop):
         """Set serial port connection parameters."""
+        logging.debug(
+            'Setting serial port %s parameters to (%d, %s, %s, %s).',
+            self._serial.port, speed, parity, bytesize, stop
+        )
         with safe_io(error.DEVICE_FAULT):
             self._check_open()
             self._serial.baudrate = speed
@@ -260,8 +264,10 @@ class COMDevice(Device):
         """Get serial port connection parameters."""
         with safe_io(error.DEVICE_FAULT):
             self._check_open()
-            return (self._serial.baudrate, self._serial.parity,
-                    self._serial.bytesize, self._serial.stopbits)
+            return (
+                self._serial.baudrate, self._serial.parity,
+                self._serial.bytesize, self._serial.stopbits
+            )
 
     def set_pins(self, rts=None, dtr=None, brk=None):
         """Set signal pins."""
@@ -283,8 +289,8 @@ class COMDevice(Device):
 
     def close(self):
         """Close the serial connection."""
-        logging.debug('ports.py, COMDevice, close, closing the serial port.')
         if self._serial and self._serial.is_open:
+            logging.debug('Closing serial port %s.', self._serial.port)
             self._serial.close()
 
     def io_waiting(self):
@@ -313,7 +319,7 @@ class COMFile(TextFileBase, RealTimeInputMixin):
         self.log_serial_msg=True
 
     def close(self):
-        """Close the file and the port."""
+        """Close the file (but not the port)."""
         # do *not* call the parent close()
         # as this would call close() on our (unique) serial file handle
         #TextFileBase.close(self)
@@ -335,9 +341,11 @@ class COMFile(TextFileBase, RealTimeInputMixin):
             if self._current:
                 s.append(self._current)
         if len(s) > 0 and self.log_serial_msg:
-            free = self.lof()
-            logging.debug("ports.py, COMFile, read, read: %s, space in input buffer=%s",
-                          str(''.join(s)).replace('\r', '\\r').replace('\n', '\\n').replace('\x00', '\\x00'), str(free))
+            logging.debug('ports.py, COMFile, read, reading from serial port %s: %r', self._fhandle.port, b''.join(s))
+        #   free = self.lof()
+        #   logging.debug("ports.py, COMFile, read, read: %s, space in input buffer=%s",
+        #                 str(''.join(s)).replace('\r', '\\r').replace('\n', '\\n').replace('\x00', '\\x00'), str(free))
+
         return b''.join(s)
 
     def read_one(self):
@@ -360,12 +368,10 @@ class COMFile(TextFileBase, RealTimeInputMixin):
                 out.append(c)
             c = None
         if len(out) > 0 and self.log_serial_msg:
-            free = self.lof()
-            logging.debug("ports.py, COMFile, read_line, read: %s, space in input buffer=%s",
-                          str(''.join(out)).replace('\r', '\\r').replace('\n', '\\n').replace('\x00', '\\x00'), str(free))
-        return ''.join(out), c
+            logging.debug('ports.py, COMFile, read_line, reading line from serial port %s: %r', self._fhandle.port, b''.join(out))
+        return b''.join(out), c
 
-    def write_line(self, s=''):
+    def write_line(self, s=b''):
         """Write string or bytearray and newline to port."""
         self.write(s + b'\r')
 
@@ -373,10 +379,9 @@ class COMFile(TextFileBase, RealTimeInputMixin):
         """Write string to port."""
         if self._linefeed:
             s = s.replace(b'\r', b'\r\n')
-        if self.log_serial_msg:
-            logging.debug("ports.py, COMFile, write, writting line to com port: %s",
-                          str(s).replace('\r', '\\r').replace('\n', '\\n').replace('\x00', '\\x00'))
         with safe_io():
+            if self.log_serial_msg:
+                logging.debug('ports.py, COMFile, write, writing to serial port %s: %r', self._fhandle.port, s)
             self._fhandle.write(s)
 
     def get(self, num):
@@ -385,13 +390,13 @@ class COMFile(TextFileBase, RealTimeInputMixin):
             return
         # blocking read of num bytes
         s = self.read(num)
-        self._field.buffer[:len(s)] = s
+        self._field.view_buffer()[:len(s)] = s
 
     def put(self, num):
         """Write num bytes - PUT on COM port."""
         if not num:
             return
-        self.write(self._field.buffer[:num])
+        self.write(bytes(self._field.view_buffer()[:num]))
 
     def loc(self):
         """LOC: Returns number of chars waiting to be read."""
@@ -433,6 +438,7 @@ class SerialStdIO(object):
         self.rts = False
         self.dtr = False
         self.break_condition = False
+        self.port = u'STDIO'
 
     def open(self):
         """Open a connection."""

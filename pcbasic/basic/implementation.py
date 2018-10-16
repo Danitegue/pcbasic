@@ -47,8 +47,8 @@ GREETING = (
 class Implementation(object):
     """Interpreter session, implementation class."""
 
-    def __init__(self,
-            syntax=u'advanced', double=False, term=u'', shell=u'',
+    def __init__(
+            self, syntax=u'advanced', double=False, term=u'', shell=u'',
             output_streams=sys.stdout, input_streams=sys.stdin,
             codepage=None, box_protect=True, font=None, text_width=80,
             video=u'cga', monitor=u'rgb', aspect_ratio=(4, 3), low_intensity=False,
@@ -59,7 +59,7 @@ class Implementation(object):
             max_memory=65534, reserved_memory=3429, video_memory=262144,
             serial_buffer_size=128, max_reclen=128, max_files=3,
             extension=None, greeting=True,
-            ):
+        ):
         """Initialise the interpreter session."""
         ######################################################################
         # session-level members
@@ -82,7 +82,8 @@ class Implementation(object):
         # set up variables and memory model state
         # initialise the data segment
         self.memory = memory.DataSegment(
-                    max_memory, reserved_memory, max_reclen, max_files, double)
+            max_memory, reserved_memory, max_reclen, max_files, double
+        )
         # values and variables
         self.strings = self.memory.strings
         self.values = self.memory.values
@@ -95,8 +96,9 @@ class Implementation(object):
         # initialise the program
         bytecode = codestream.TokenisedStream(self.memory.code_start)
         self.program = program.Program(
-                self.tokeniser, self.lister, hide_listing, hide_protected,
-                allow_code_poke, self.memory, bytecode, rebuild_offsets)
+            self.tokeniser, self.lister, hide_listing, hide_protected,
+            allow_code_poke, self.memory, bytecode, rebuild_offsets
+        )
         # register all data segment users
         self.memory.set_buffers(self.program)
         ######################################################################
@@ -107,20 +109,23 @@ class Implementation(object):
         # set up input event handler
         # no interface yet; use dummy queues
         self.queues = eventcycle.EventQueues(
-                self.values, ctrl_c_is_break, inputs=Queue.Queue())
+            self.values, ctrl_c_is_break, inputs=Queue.Queue()
+        )
         # prepare I/O streams
         self.io_streams = iostreams.IOStreams(
-                self.queues, self.codepage, input_streams, output_streams, utf8)
+            self.queues, self.codepage, input_streams, output_streams, utf8
+        )
         # initialise sound queue
         self.sound = sound.Sound(self.queues, self.values, self.memory, syntax)
         # Sound is needed for the beeps on \a
         # InputMethods is needed for wait() in graphics
         self.display = display.Display(
-                self.queues, self.values, self.queues,
-                self.memory, text_width, video_memory, video, monitor,
-                self.sound, self.io_streams,
-                low_intensity, aspect_ratio,
-                self.codepage, font)
+            self.queues, self.values, self.queues,
+            self.memory, text_width, video_memory, video, monitor,
+            self.sound, self.io_streams,
+            low_intensity, aspect_ratio,
+            self.codepage, font
+        )
         self.screen = self.display.text_screen
         self.drawing = self.display.drawing
         # initilise floating-point error message stream
@@ -128,7 +133,8 @@ class Implementation(object):
         # prepare input devices (keyboard, pen, joystick, clipboard-copier)
         # EventHandler needed for wait() only
         self.keyboard = inputs.Keyboard(
-                self.queues, self.values, self.codepage, keys, check_keybuffer_full)
+            self.queues, self.values, self.codepage, keys, check_keybuffer_full
+        )
         self.pen = inputs.Pen()
         self.stick = inputs.Stick(self.values)
         ######################################################################
@@ -138,13 +144,15 @@ class Implementation(object):
         # DataSegment needed for COMn and disk FIELD buffers
         # EventCycle needed for wait()
         self.files = Files(
-                self.values, self.memory, self.queues, self.keyboard, self.display,
-                max_files, max_reclen, serial_buffer_size,
-                devices, current_device, mount, utf8, not soft_linefeed)
+            self.values, self.memory, self.queues, self.keyboard, self.display,
+            max_files, max_reclen, serial_buffer_size,
+            devices, current_device, mount, utf8, not soft_linefeed
+        )
         # set up the SHELL command
         # Files needed for current disk device
         self.shell = dos.Shell(
-                self.queues, self.keyboard, self.screen, self.files, self.codepage, shell)
+            self.queues, self.keyboard, self.screen, self.files, self.codepage, shell
+        )
         # set up environment
         self.environment = dos.Environment(self.values)
         # initialise random number generator
@@ -163,17 +171,20 @@ class Implementation(object):
         self.queues.add_handler(self.stick)
         # set up BASIC event handlers
         self.basic_events = basicevents.BasicEvents(
-                self.values, self.sound, self.clock, self.files,
-                self.screen, self.program, syntax)
+            self.values, self.sound, self.clock, self.files,
+            self.screen, self.program, syntax
+        )
         ######################################################################
         # editor
         ######################################################################
         # key macro guide
         self.fkey_macros = editor.FunctionKeyMacros(
-                self.keyboard, self.screen, self.basic_events.num_fn_keys)
+            self.keyboard, self.screen, self.basic_events.num_fn_keys
+        )
         # initialise the editor
         self.editor = editor.Editor(
-                self.screen, self.keyboard, self.sound, self.io_streams, self.files.lpt1_file)
+            self.screen, self.keyboard, self.sound, self.io_streams, self.files.lpt1_file
+        )
         ######################################################################
         # extensions
         ######################################################################
@@ -185,19 +196,22 @@ class Implementation(object):
         self.parser = parser.Parser(self.values, self.memory, syntax)
         # initialise the interpreter
         self.interpreter = interpreter.Interpreter(
-                self.queues, self.screen, self.files, self.sound,
-                self.values, self.memory, self.program, self.parser, self.basic_events)
+            self.queues, self.screen, self.files, self.sound,
+            self.values, self.memory, self.program, self.parser, self.basic_events
+        )
         ######################################################################
         # callbacks
         ######################################################################
         # set up non-data segment memory
         self.all_memory = machine.Memory(
-                self.values, self.memory, self.files,
-                self.display, self.keyboard, self.screen.fonts[8],
-                self.interpreter, peek_values, syntax)
+            self.values, self.memory, self.files,
+            self.display, self.keyboard, self.screen.fonts[8],
+            self.interpreter, peek_values, syntax
+        )
         # initialise machine ports
         self.machine = machine.MachinePorts(
-                self.queues, self.values, self.display, self.keyboard, self.stick, self.files)
+            self.queues, self.values, self.display, self.keyboard, self.stick, self.files
+        )
         # build function table (depends on Memory having been initialised)
         self.parser.init_callbacks(self)
 
@@ -263,8 +277,8 @@ class Implementation(object):
     def get_variable(self, name):
         """Get a variable in memory."""
         name = name.upper()
-        if '(' in name:
-            name = name.split('(', 1)[0]
+        if b'(' in name:
+            name = name.split(b'(', 1)[0]
             return self.arrays.to_list(name)
         else:
             return self.memory.view_or_create_variable(name, []).to_value()
@@ -300,7 +314,7 @@ class Implementation(object):
             self.program.edit(self.screen, linenum, tell)
         elif self._prompt:
             self.screen.start_line()
-            self.screen.write_line('Ok\xff')
+            self.screen.write_line(b'Ok\xff')
 
     def _store_line(self, line):
         """Store a program line or schedule a command line for execution."""
@@ -308,7 +322,7 @@ class Implementation(object):
             return True
         self.interpreter.direct_line = self.tokeniser.tokenise_line(line)
         c = self.interpreter.direct_line.peek()
-        if c == '\0':
+        if c == b'\0':
             # clear all program stacks
             self.interpreter.clear_stacks_and_pointers()
             # clear variables first,
@@ -318,7 +332,7 @@ class Implementation(object):
             self.program.check_number_start(self.interpreter.direct_line)
             self.program.store_line(self.interpreter.direct_line)
             return True
-        elif c != '':
+        elif c != b'':
             # it is a command, go and execute
             self.interpreter.set_parse_mode(True)
             return False
@@ -326,20 +340,20 @@ class Implementation(object):
     def _auto_step(self):
         """Generate an AUTO line number and wait for input."""
         try:
-            numstr = str(self._auto_linenum)
+            numstr = b'%d' % (self._auto_linenum,)
             self.screen.write(numstr)
             if self._auto_linenum in self.program.line_numbers:
-                self.screen.write('*')
+                self.screen.write(b'*')
                 line = bytearray(self.editor.wait_screenline(from_start=True))
-                if line[:len(numstr)+1] == numstr + '*':
-                    line[len(numstr)] = ' '
+                if line[:len(numstr)+1] == numstr + b'*':
+                    line[len(numstr)] = b' '
             else:
-                self.screen.write(' ')
+                self.screen.write(b' ')
                 line = bytearray(self.editor.wait_screenline(from_start=True))
             # run or store it; don't clear lines or raise undefined line number
             self.interpreter.direct_line = self.tokeniser.tokenise_line(line)
             c = self.interpreter.direct_line.peek()
-            if c == '\0':
+            if c == b'\0':
                 # check for lines starting with numbers (6553 6) and empty lines
                 empty, scanline = self.program.check_number_start(self.interpreter.direct_line)
                 if not empty:
@@ -348,7 +362,7 @@ class Implementation(object):
                     self.interpreter.clear_stacks_and_pointers()
                     self._clear_all()
                 self._auto_linenum = scanline + self._auto_increment
-            elif c != '':
+            elif c != b'':
                 # it is a command, go and execute
                 self.interpreter.set_parse_mode(True)
         except error.Break:
@@ -476,7 +490,7 @@ class Implementation(object):
             raise error.BASICError(error.INTERNAL_ERROR)
         # terminal program for TERM command
         prog = self.files.get_device(b'@:').bind(self._term_program)
-        with self.files.open(0, prog, filetype='ABP', mode='I') as progfile:
+        with self.files.open(0, prog, filetype=b'ABP', mode=b'I') as progfile:
             self.program.load(progfile)
         self.interpreter.error_handle_mode = False
         self.interpreter.clear_stacks_and_pointers()
@@ -497,7 +511,7 @@ class Implementation(object):
         line_range = next(args)
         out = values.next_string(args)
         if out is not None:
-            out = self.files.open(0, out, filetype='A', mode='O')
+            out = self.files.open(0, out, filetype=b'A', mode=b'O')
         list(args)
         lines = self.program.list_lines(*line_range)
         if out:
@@ -544,7 +558,7 @@ class Implementation(object):
         """LOAD: load program from file."""
         name = values.next_string(args)
         comma_r, = args
-        with self.files.open(0, name, filetype='ABP', mode='I') as f:
+        with self.files.open(0, name, filetype=b'ABP', mode=b'I') as f:
             self.program.load(f)
         # reset stacks
         self.interpreter.clear_stacks_and_pointers()
@@ -582,7 +596,7 @@ class Implementation(object):
                     preserve_base=(commons or common_all),
                     preserve_deftype=merge)
             # load new program
-            with self.files.open(0, name, filetype='ABP', mode='I') as f:
+            with self.files.open(0, name, filetype=b'ABP', mode=b'I') as f:
                 if delete_lines:
                     # delete lines from existing code before merge
                     # (without MERGE, this is pointless)
@@ -603,13 +617,15 @@ class Implementation(object):
     def save_(self, args):
         """SAVE: save program to a file."""
         name = values.next_string(args)
-        mode = (next(args) or 'B').upper()
+        mode = (next(args) or b'B').upper()
         list(args)
-        with self.files.open(0, name, filetype=mode, mode='O',
-                            seg=self.memory.data_segment, offset=self.memory.code_start,
-                            length=len(self.program.bytecode.getvalue())-1) as f:
+        with self.files.open(
+                0, name, filetype=mode, mode=b'O',
+                seg=self.memory.data_segment, offset=self.memory.code_start,
+                length=len(self.program.bytecode.getvalue())-1
+            ) as f:
             self.program.save(f)
-        if mode == 'A':
+        if mode == b'A':
             # return to direct mode
             self.interpreter.set_pointer(False)
 
@@ -618,7 +634,7 @@ class Implementation(object):
         name = values.next_string(args)
         list(args)
         # check if file exists, make some guesses (all uppercase, +.BAS) if not
-        with self.files.open(0, name, filetype='A', mode='I') as f:
+        with self.files.open(0, name, filetype=b'A', mode=b'I') as f:
             self.program.merge(f)
         # clear all program stacks
         self.interpreter.clear_stacks_and_pointers()
@@ -643,7 +659,7 @@ class Implementation(object):
             try:
                 name = values.next_string(args)
                 comma_r = next(args)
-                with self.files.open(0, name, filetype='ABP', mode='I') as f:
+                with self.files.open(0, name, filetype=b'ABP', mode=b'I') as f:
                     self.program.load(f)
             except StopIteration:
                 pass
@@ -675,7 +691,7 @@ class Implementation(object):
         if file_number is not None:
             file_number = values.to_int(file_number)
             error.range_check(0, 255, file_number)
-            finp = self.files.get(file_number, mode='IR')
+            finp = self.files.get(file_number, mode=b'IR')
             self._input_file(finp, args)
         else:
             newline, prompt, following = next(args)
@@ -683,48 +699,52 @@ class Implementation(object):
 
     def _input_console(self, newline, prompt, following, readvar):
         """INPUT: request input from user."""
-        if following == ';':
-            prompt += '? '
-        # read the input
-        self.interpreter.input_mode = True
-        self.parser.redo_on_break = True
-        # readvar is a list of (name, indices) tuples
-        # we return a list of (name, indices, values) tuples
-        while True:
-            self.screen.write(prompt)
-            # disconnect the wrap between line with the prompt and previous line
-            if self.screen.current_row > 1:
-                self.screen.text.pages[self.screen.apagenum].row[self.screen.current_row-2].wrap = False
-            line = self.editor.wait_screenline(write_endl=newline)
-            inputstream = InputTextFile(line)
-            # read the values and group them and the separators
-            var, values, seps = [], [], []
-            for name, indices in readvar:
-                name = self.memory.complete_name(name)
-                word, sep = inputstream.input_entry(name[-1], allow_past_end=True)
-                try:
-                    value = self.values.from_repr(word, allow_nonnum=False, typechar=name[-1])
-                except error.BASICError as e:
-                    # string entered into numeric field
-                    value = None
-                var.append([name, indices])
-                values.append(value)
-                seps.append(sep)
-            # last separator not empty: there were too many values or commas
-            # earlier separators empty: there were too few values
-            # empty values will be converted to zero by from_str
-            # None means a conversion error occurred
-            if (seps[-1] or '' in seps[:-1] or None in values):
-                # good old Redo!
-                self.screen.write_line('?Redo from start')
-                readvar = var
-            else:
-                varlist = [r + [v] for r, v in zip(var, values)]
-                break
-        self.parser.redo_on_break = False
-        self.interpreter.input_mode = False
-        for v in varlist:
-            self.memory.set_variable(*v)
+        if following == b';':
+            prompt += b'? '
+        with self.memory.get_stack() as stack:
+            # read the input
+            self.interpreter.input_mode = True
+            self.parser.redo_on_break = True
+            # readvar is a list of (name, indices) tuples
+            # we return a list of (name, indices, values) tuples
+            while True:
+                self.screen.write(prompt)
+                # disconnect the wrap between line with the prompt and previous line
+                if self.screen.current_row > 1:
+                    (
+                        self.screen.text.pages[self.screen.apagenum].row[self.screen.current_row-2]
+                    ).wrap = False
+                line = self.editor.wait_screenline(write_endl=newline)
+                inputstream = InputTextFile(line)
+                # read the values and group them and the separators
+                var, values, seps = [], [], []
+                for name, indices in readvar:
+                    name = self.memory.complete_name(name)
+                    word, sep = inputstream.input_entry(name[-1], allow_past_end=True)
+                    try:
+                        value = self.values.from_repr(word, allow_nonnum=False, typechar=name[-1])
+                    except error.BASICError as e:
+                        # string entered into numeric field
+                        value = None
+                    stack.append(value)
+                    var.append([name, indices])
+                    values.append(value)
+                    seps.append(sep)
+                # last separator not empty: there were too many values or commas
+                # earlier separators empty: there were too few values
+                # empty values will be converted to zero by from_str
+                # None means a conversion error occurred
+                if (seps[-1] or b'' in seps[:-1] or None in values):
+                    # good old Redo!
+                    self.screen.write_line(b'?Redo from start')
+                    readvar = var
+                else:
+                    varlist = [r + [v] for r, v in zip(var, values)]
+                    break
+            self.parser.redo_on_break = False
+            self.interpreter.input_mode = False
+            for v in varlist:
+                self.memory.set_variable(*v)
 
     def _input_file(self, finp, readvar):
         """INPUT: retrieve input from file."""
@@ -747,7 +767,7 @@ class Implementation(object):
             prompt, newline = None, None
             file_number = values.to_int(file_number)
             error.range_check(0, 255, file_number)
-            finp = self.files.get(file_number, mode='IR')
+            finp = self.files.get(file_number, mode=b'IR')
         # get string variable
         readvar, indices = next(args)
         list(args)
@@ -779,7 +799,7 @@ class Implementation(object):
         else:
             # prompt for random seed if not specified
             while val is None:
-                self.screen.write('Random number seed (-32768 to 32767)? ')
+                self.screen.write(b'Random number seed (-32768 to 32767)? ')
                 seed = self.editor.wait_screenline()
                 val = self.values.from_repr(seed, allow_nonnum=False)
             # seed entered on prompt is rounded to int
@@ -800,7 +820,7 @@ class Implementation(object):
             # in which case it's a key scancode definition
             if len(text) != 2:
                 raise error.BASICError(error.IFC)
-            self.basic_events.key[keynum-1].set_trigger(str(text))
+            self.basic_events.key[keynum-1].set_trigger(text)
 
     def pen_fn_(self, args):
         """PEN: poll the light pen."""

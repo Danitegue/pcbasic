@@ -6,6 +6,7 @@ Program buffer utilities
 This file is released under the GNU GPL version 3 or later.
 """
 
+import binascii
 import logging
 import struct
 import io
@@ -14,6 +15,10 @@ from .base import error
 from .base import tokens as tk
 from . import values
 from . import converter
+
+
+# mark bytes conversion explicitly
+int2byte = chr
 
 
 class Program(object):
@@ -44,20 +49,24 @@ class Program(object):
         for key in sorted(self.line_numbers.keys())[1:]:
             offset, linum = code[p+1:p+3], code[p+3:p+5]
             last_offset = offset_val
-            offset_val = (struct.unpack('<H', offset)[0]
-                                    - (self.code_start + 1))
+            offset_val = struct.unpack('<H', offset)[0] - (self.code_start + 1)
             linum_val, = struct.unpack('<H', linum)
-            output.append(
-                (code[p:p+1].encode('hex') + ' ' +
-                offset.encode('hex') + ' (+%03d) ' +
-                code[p+3:p+5].encode('hex') + ' [%05d] ' +
-                code[p+5:self.line_numbers[key]].encode('hex')) %
-                                        (offset_val - last_offset, linum_val))
+            output.append(b'%s %s (+%03d) %s [%05d] %s' % (
+                binascii.hexlify(code[p:p+1]),
+                binascii.hexlify(offset),
+                offset_val - last_offset,
+                binascii.hexlify(code[p+3:p+5]),
+                linum_val,
+                binascii.hexlify(code[p+5:])
+            ))
             p = self.line_numbers[key]
-        output.append(code[p:p+1].encode('hex') + ' ' +
-                    code[p+1:p+3].encode('hex') + ' (ENDS) ' +
-                    code[p+3:p+5].encode('hex') + ' ' + code[p+5:].encode('hex'))
-        return '\n'.join(output)
+        output.append(b'%s %s (ENDS) %s %s' % (
+            binascii.hexlify(code[p:p+1]),
+            binascii.hexlify(code[p+1:p+3]),
+            binascii.hexlify(code[p+3:p+5]),
+            binascii.hexlify(code[p+5:])
+        ))
+        return b'\n'.join(output)
 
     def size(self):
         """Size of code space """
@@ -66,22 +75,22 @@ class Program(object):
     def erase(self):
         """Erase the program from memory."""
         self.bytecode.seek(0)
-        self.bytecode.write('\0\0\0')
+        self.bytecode.write(b'\0\0\0')
         self.protected = False
-        self.line_numbers = { 65536: 0 }
+        self.line_numbers = {65536: 0}
         self.last_stored = None
         self.code_size = self.bytecode.tell()
 
-    def truncate(self, rest=''):
+    def truncate(self, rest=b''):
         """Write bytecode and cut the program of beyond the current position."""
-        self.bytecode.write(rest if rest else '\0\0\0')
+        self.bytecode.write(rest if rest else b'\0\0\0')
         self.bytecode.truncate()
         # cut off at current position
         self.code_size = self.bytecode.tell()
 
     def explicit_lines(self, *line_range):
         """Convert iterables of lines with '.' into explicit numbers."""
-        return (self.last_stored if l == '.' else l for l in line_range)
+        return (self.last_stored if l == b'.' else l for l in line_range)
 
     def get_line_number(self, pos):
         """Get line number for stream position."""
@@ -98,11 +107,13 @@ class Program(object):
         self.bytecode.seek(0)
         scanline, scanpos, last = 0, 0, 0
         while True:
-            self.bytecode.read(1) # pass \x00
+            # pass \x00
+            self.bytecode.read(1)
             scanline = self.lister.detokenise_line_number(self.bytecode)
             if scanline == -1:
                 scanline = 65536
-                # if detokenise_line_number returns -1, it leaves the stream pointer here: 00 _00_ 00 1A
+                # if detokenise_line_number returns -1, it leaves the stream pointer here:
+                # 00 _00_ 00 1A
                 break
             self.line_numbers[scanline] = scanpos
             last = scanpos
@@ -119,8 +130,9 @@ class Program(object):
                 self.bytecode.write(struct.pack('<H', self.code_start + 1 + pos))
                 self.bytecode.read(pos - last - 3)
                 last = pos
-            # ensure program is properly sealed - last offset must be 00 00. keep, but ignore, anything after.
-            self.bytecode.write('\0\0\0')
+            # ensure program is properly sealed - last offset must be 00 00.
+            # keep, but ignore, anything after.
+            self.bytecode.write(b'\0\0\0')
 
     def update_line_dict(self, pos, afterpos, length, deleteable, beyond):
         """Update line number dictionary after deleting lines."""
@@ -130,7 +142,7 @@ class Program(object):
         self.bytecode.seek(afterpos + length + 1)  # pass \x00
         while True:
             next_addr = self.bytecode.read(2)
-            if len(next_addr) < 2 or next_addr == '\0\0':
+            if len(next_addr) < 2 or next_addr == b'\0\0':
                 break
             next_addr, = struct.unpack('<H', next_addr)
             self.bytecode.seek(-2, 1)
@@ -227,13 +239,13 @@ class Program(object):
     def edit(self, screen, from_line, bytepos=None):
         """Output program line to console and position cursor."""
         if self.protected:
-            screen.write(str(from_line)+'\r')
+            screen.write(b'%d\r' % (from_line,))
             raise error.BASICError(error.IFC)
         # list line
         self.bytecode.seek(self.line_numbers[from_line]+1)
         _, output, textpos = self.lister.detokenise_line(self.bytecode, bytepos)
         # no newline to avoid scrolling on line 24
-        screen.list_line(str(output), newline=False)
+        screen.list_line(bytes(output), newline=False)
         # find row, column position for textpos
         newlines, c = 0, 0
         pos_row, pos_col = 0, 0
@@ -241,7 +253,7 @@ class Program(object):
             return
         for i, byte in enumerate(output):
             c += 1
-            if chr(byte) == '\n' or c > screen.mode.width:
+            if byte == ord(b'\n') or c > screen.mode.width:
                 newlines += 1
                 c = 0
             if i == textpos:
@@ -258,11 +270,14 @@ class Program(object):
         new_line = 10 if new_line is None else new_line
         start_line = 0 if start_line is None else start_line
         step = 10 if step is None else step
+        # ensure we're not about to overwrite anything
+        remaining = [_k for _k in self.line_numbers.keys() if _k < start_line]
+        if remaining and new_line <= max(remaining):
+            raise error.BASICError(error.IFC)
         # get a sorted list of line numbers
-        keys = sorted([ k for k in self.line_numbers.keys() if k >= start_line])
         # assign the new numbers
         old_to_new = {}
-        for old_line in keys:
+        for old_line in sorted(_k for _k in self.line_numbers.keys() if _k >= start_line):
             if old_line < 65535 and new_line > 65529:
                 raise error.BASICError(error.IFC)
             if old_line == 65536:
@@ -282,7 +297,6 @@ class Program(object):
         while ins.skip_to_read((tk.T_UINT,)) == tk.T_UINT:
             # get the old g number
             token = ins.read(2)
-            assert len(token) == 2, 'bytecode truncated in line number pointer'
             jumpnum, = struct.unpack('<H', token)
             # handle exception for ERROR GOTO
             if jumpnum == 0:
@@ -299,7 +313,7 @@ class Program(object):
                 # not redefined, exists in program?
                 if jumpnum not in self.line_numbers:
                     linum = self.get_line_number(ins.tell()-1)
-                    screen.write_line('Undefined line ' + str(jumpnum) + ' in ' + str(linum))
+                    screen.write_line(b'Undefined line %d in %d' % (jumpnum, linum))
                 newjump = jumpnum
             ins.seek(-2, 1)
             ins.write(struct.pack('<H', newjump))
@@ -377,7 +391,7 @@ class Program(object):
                 current_line, output, _ = self.lister.detokenise_line(self.bytecode)
                 if current_line == -1 or (current_line > self.max_list_line):
                     break
-                g.write_line(str(output))
+                g.write_line(bytes(output))
         self.bytecode.seek(current)
 
     def list_lines(self, from_line, to_line):
@@ -401,7 +415,7 @@ class Program(object):
         for pos in listable:
             self.bytecode.seek(pos + 1)
             _, line, _ = self.lister.detokenise_line(self.bytecode)
-            lines.append(str(line))
+            lines.append(bytes(line))
         return lines
 
     def get_memory(self, offset):
@@ -429,11 +443,11 @@ class Program(object):
             # move pointer to end
             self.bytecode.seek(0, 2)
             if offset > self.bytecode.tell():
-                self.bytecode.write('\0' * (offset-self.bytecode.tell()))
+                self.bytecode.write(b'\0' * (offset-self.bytecode.tell()))
             else:
                 self.bytecode.seek(offset)
-            self.bytecode.write(chr(val))
-            self.bytecode.seek(0,2)
+            self.bytecode.write(int2byte(val))
+            self.bytecode.seek(0, 2)
             self.rebuild_line_dict()
             # restore program pointer
             self.bytecode.seek(loc)

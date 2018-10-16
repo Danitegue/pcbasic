@@ -50,31 +50,35 @@ trace_vars=[] # DS -> This is to add in the log file the values of a determined 
 class Field(object):
     """Buffer for FIELD access."""
 
-    def __init__(self, reclen, number=0, memory=None):
+    def __init__(self, reclen, address, memory):
         """Set up empty FIELD buffer."""
-        if number > 0:
-            self.address = memory.field_mem_start + (number-1)*memory.field_mem_offset
-        else:
-            self.address = -1
-        self.buffer = bytearray(reclen)
-        self.memory = memory
+        self._address = address
+        self._buffer = bytearray(reclen)
+        self._memory = memory
+
+    def clear(self):
+        """Zero the buffer."""
+        self._buffer[:] = bytearray(len(self._buffer))
+
+    def view_buffer(self):
+        """Get a view of the field buffer."""
+        return memoryview(self._buffer)
 
     def attach_var(self, name, indices, offset, length):
         """Attach a FIELD variable."""
-        if self.address < 0 or self.memory == None:
-            raise AttributeError("Can't attach variable to non-memory-mapped field.")
-        if name[-1] != values.STR:
+        if name[-1:] != values.STR:
             # type mismatch
             raise error.BASICError(error.TYPE_MISMATCH)
-        if offset + length > len(self.buffer):
+        if offset + length > len(self._buffer):
             # FIELD overflow
             raise error.BASICError(error.FIELD_OVERFLOW)
         # create a string pointer
-        str_addr = self.address + offset
+        str_addr = self._address + offset
         str_sequence = struct.pack('<BH', length, str_addr)
         # assign the string ptr to the variable name
-        # desired side effect: if we re-assign this string variable through LET, it's no longer connected to the FIELD.
-        self.memory.set_variable(name, indices, self.memory.values.from_bytes(str_sequence))
+        # desired side effect: if we re-assign this string variable through LET,
+        # it's no longer connected to the FIELD.
+        self._memory.set_variable(name, indices, self._memory.values.from_bytes(str_sequence))
 
 
 class DataSegment(object):
@@ -96,22 +100,18 @@ class DataSegment(object):
         # total size of data segment (set by CLEAR)
         self.total_memory = total_memory
         # first field buffer address (workspace size; 3429 for gw-basic)
-        self.field_mem_base = reserved_memory
+        self._field_mem_base = reserved_memory
         # file header (at head of field memory)
         file_header_size = 194
         # bytes distance between field buffers
-        self.field_mem_offset = file_header_size + max_reclen
+        self._field_mem_offset = file_header_size + max_reclen
         # start of 1st field =3945, includes FCB & header header of 1st field
-        self.field_mem_start = self.field_mem_base + self.field_mem_offset + file_header_size
+        self._field_mem_start = self._field_mem_base + self._field_mem_offset + file_header_size
         # data memory model: start of code section
         # code_start+1: offsets in files (4718 == 0x126e)
-        self.code_start = self.field_mem_base + (max_files+1) * self.field_mem_offset
+        self.code_start = self._field_mem_base + (max_files+1) * self._field_mem_offset
         # default sigils for names
-        self.deftype = ['!']*26
-        # FIELD buffers
-        self.max_files = max_files
-        self.max_reclen = max_reclen
-        self.fields = {}
+        self.deftype = [values.SNG]*26
         # string space
         self.strings = values.StringSpace(self)
         # prepare string and number handler
@@ -123,7 +123,18 @@ class DataSegment(object):
         # temporary values
         self._stack = []
         # FIELD buffers
-        self.reset_fields()
+        self.max_files = max_files
+        self.max_reclen = max_reclen
+        # fields are indexed by BASIC file number, hence max_files+1
+        # file 0 (program/system file) probably doesn't need a field
+        self.fields = {
+            _i + 1: Field(
+                self.max_reclen, self._field_mem_start + _i * self._field_mem_offset, self
+            )
+            for _i in range(self.max_files)
+        }
+        # garbage collection switch
+        self._allow_collect = True
 
     def set_buffers(self, program):
         """Register program and variables."""
@@ -131,11 +142,8 @@ class DataSegment(object):
 
     def reset_fields(self):
         """Reset FIELD buffers."""
-        self.fields.clear()
-        # fields are indexed by BASIC file number, hence max_files+1
-        # file 0 (program/system file) probably doesn't need a field
-        for i in range(self.max_files+1):
-            self.fields[i+1] = Field(self.max_reclen, i+1, self)
+        for field in self.fields.values():
+            field.clear()
 
     @contextmanager
     def get_stack(self):
@@ -146,14 +154,14 @@ class DataSegment(object):
 
     def clear_deftype(self):
         """Reset default sigils."""
-        self.deftype = ['!']*26
+        self.deftype = [values.SNG]*26
 
     def deftype_(self, sigil, args):
         """DEFSTR/DEFINT/DEFSNG/DEFDBL: set type defaults for variables."""
         for start, stop in args:
-            start = ord(start.upper()) - ord('A')
+            start = ord(start.upper()) - ord(b'A')
             if stop:
-                stop = ord(stop.upper()) - ord('A')
+                stop = ord(stop.upper()) - ord(b'A')
             else:
                 stop = start
             self.deftype[start:stop+1] = [sigil] * (stop-start+1)
@@ -199,53 +207,69 @@ class DataSegment(object):
             preserve_sc, preserve_ar = preserve_common
         else:
             preserve_sc, preserve_ar = set(), set()
-        string_store = values.StringSpace(self)
-        # preserve scalars
-        common_scalars = {
+        # do not collect garbage during string migration
+        # it's not going to free up memory and it will break things
+        with self.hold_garbage():
+            string_store = values.StringSpace(self)
+            # preserve scalars
+            common_scalars = {
                 name: self.scalars.get(name)
-                for name in preserve_sc if name in self.scalars}
-        for name, value in common_scalars.iteritems():
-            if name[-1] == values.STR:
-                length, address = self.strings.copy_to(string_store, *value.to_pointer())
-                value = self.values.new_string().from_pointer(length, address)
-                common_scalars[name] = value
-        # preserve arrays
-        common_arrays = {
+                for name in preserve_sc if name in self.scalars
+            }
+            for name, value in common_scalars.iteritems():
+                if name[-1] == values.STR:
+                    length, address = self.strings.copy_to(string_store, *value.to_pointer())
+                    value = self.values.new_string().from_pointer(length, address)
+                    common_scalars[name] = value
+            # preserve arrays
+            common_arrays = {
                 name: (self.arrays.dimensions(name), bytearray(self.arrays.view_full_buffer(name)))
-                for name in preserve_ar if name in self.arrays}
-        for name, value in common_arrays.iteritems():
-            if name[-1] == values.STR:
+                for name in preserve_ar if name in self.arrays
+            }
+            for name, value in common_arrays.iteritems():
+                if name[-1] == values.STR:
+                    dimensions, buf = value
+                    for i in range(0, len(buf), 3):
+                        # if the string array is not full, pointers are zero
+                        # but address is ignored for zero length
+                        length, address = self.strings.copy_to(
+                            string_store, *struct.unpack('<BH', buf[i:i+3])
+                        )
+                        # modify the stored bytearray
+                        buf[i:i+3] = struct.pack('<BH', length, address)
+            yield
+            # check if there is sufficient memory
+            scalar_size = sum(self.scalars.memory_size(name) for name in common_scalars)
+            array_size = sum(
+                self.arrays.memory_size(name, val[0])
+                for name, val in common_arrays.iteritems()
+            )
+            if self.var_start() + scalar_size + array_size > string_store.current:
+                raise error.BASICError(error.OUT_OF_MEMORY)
+            self.strings.rebuild(string_store)
+            for name, value in common_scalars.iteritems():
+                self.scalars.set(name, value)
+            for name, value in common_arrays.iteritems():
                 dimensions, buf = value
-                for i in range(0, len(buf), 3):
-                    # if the string array is not full, pointers are zero
-                    # but address is ignored for zero length
-                    length, address = self.strings.copy_to(
-                                string_store, *struct.unpack('<BH', buf[i:i+3]))
-                    # modify the stored bytearray
-                    buf[i:i+3] = struct.pack('<BH', length, address)
-        yield
-        # check if there is sufficient memory
-        scalar_size = sum(self.scalars.memory_size(name)
-                            for name in common_scalars.iterkeys())
-        array_size = sum(self.arrays.memory_size(name, val[0])
-                            for name, val in common_arrays.iteritems())
-        if self.var_start() + scalar_size + array_size > string_store.current:
-            raise error.BASICError(error.OUT_OF_MEMORY)
-        self.strings.rebuild(string_store)
-        for name, value in common_scalars.iteritems():
-            self.scalars.set(name, value)
-        for name, value in common_arrays.iteritems():
-            dimensions, buf = value
-            self.arrays.allocate(name, dimensions)
-            # copy the array buffers back
-            self.arrays.view_full_buffer(name)[:] = buf
+                self.arrays.allocate(name, dimensions)
+                # copy the array buffers back
+                self.arrays.view_full_buffer(name)[:] = buf
 
     def _get_free(self):
         """Return the amount of memory available to variables, arrays, strings and code."""
         return self.strings.current - self.var_current() - self.arrays.current
 
+    @contextmanager
+    def hold_garbage(self):
+        """Temporarily block garbage collection."""
+        self._allow_collect = False
+        yield
+        self._allow_collect = True
+
     def _collect_garbage(self):
         """Collect garbage from string space. Compactify string storage."""
+        if not self._allow_collect:
+            return
         # find all strings that are actually referenced
         stack_strings = [value.view() for stack in self._stack for value in stack if isinstance(value, values.String)]
         string_ptrs = self.scalars.get_strings() + self.arrays.get_strings() + stack_strings
@@ -295,7 +319,7 @@ class DataSegment(object):
         elif addr >= self.code_start:
             # code memory
             return max(0, self.program.get_memory(addr))
-        elif addr >= self.field_mem_start:
+        elif addr >= self._field_mem_start:
             # file & FIELD memory
             return max(0, self._get_field_memory(addr))
         else:
@@ -311,7 +335,7 @@ class DataSegment(object):
         elif addr >= self.code_start:
             # code memory
             self.program.set_memory(addr, val)
-        elif addr >= self.field_mem_start:
+        elif addr >= self._field_mem_start:
             # file & FIELD memory
             self._not_implemented_pass(addr, val)
         elif addr >= 0:
@@ -320,18 +344,32 @@ class DataSegment(object):
     ###############################################################################
     # File buffer access
 
+    def _get_field_offset(self, address):
+        """Get the field and affset for an address in a FIELD buffer."""
+        # find the file we're in
+        start = address - self._field_mem_start
+        number = 1 + start // self._field_mem_offset
+        offset = start % self._field_mem_offset
+        if (number not in self.fields) or (start < 0):
+            raise ValueError('Address %x is not in FIELD memory' % address)
+        return number, offset
+
     def _get_field_memory(self, address):
         """Retrieve data from FIELD buffer."""
-        if address < self.field_mem_start:
-            return -1
-        # find the file we're in
-        start = address - self.field_mem_start
-        number = 1 + start // self.field_mem_offset
-        offset = start % self.field_mem_offset
         try:
-            return self.fields[number].buffer[offset]
+            number, offset = self._get_field_offset(address)
+        except ValueError:
+            return -1
+        try:
+            return self.fields[number].view_buffer()[offset]
         except (KeyError, IndexError):
             return -1
+
+    def view_field_memory(self, address, length):
+        """Get a view od data in FIELD buffer."""
+        number, offset = self._get_field_offset(address)
+        # memoryview slice continues to point to buffer, does not copy
+        return self.fields[number].view_buffer()[offset:offset+length]
 
     ###########################################################################
     # other memory access
@@ -397,7 +435,7 @@ class DataSegment(object):
     def complete_name(self, name):
         """Add default sigil to a name, if missing."""
         if name and name[-1] not in tk.SIGILS:
-            name += self.deftype[ord(name[0].upper()) - ord('A')]
+            name += self.deftype[ord(name[0].upper()) - ord(b'A')]
         return name
 
     def view_or_create_variable(self, name, indices):
@@ -425,16 +463,21 @@ class DataSegment(object):
         self.set_variable(name, indices, value)
 
     def set_variable(self, name, indices, value):
-        """Assign a value to a scalar variable or an array element."""
-        # note that for strings, this assigns the pointer
-        # but does not deep copy the string
-        name = self.complete_name(name)
-        if name in trace_vars:
-            logging.debug("memory.py, DataSegment, set_variable(): Setting "+str(name)+ " var to:"+str(value))
-        if indices == []:
-            self.scalars.set(name, value)
-        else:
-            self.arrays.set(name, indices, value)
+        """
+        Assign a value to a scalar variable or an array element.
+        Note that for strings, this assigns the pointer but does not deep copy the string.
+        """
+        with self.get_stack() as stack:
+            # put the value on the stack temporarily
+            # to avoid losing string values to garbage collection
+            stack.append(value)
+            name = self.complete_name(name)
+            if name in trace_vars:
+                logging.debug("memory.py, DataSegment, set_variable(): Setting "+str(name)+ " var to:"+str(value))
+            if indices == []:
+                self.scalars.set(name, value)
+            else:
+                self.arrays.set(name, indices, value)
 
     def varptr(self, name, indices):
         """Get address of variable."""
@@ -460,7 +503,7 @@ class DataSegment(object):
             # file number 0 is allowed for VARPTR
             if filenum < 0 or filenum > self.max_files:
                 raise error.BASICError(error.BAD_FILE_NUMBER)
-            var_ptr = self.field_mem_base + filenum * self.field_mem_offset + 6
+            var_ptr = self._field_mem_base + filenum * self._field_mem_offset + 6
         else:
             name = arg0
             error.throw_if(not name, error.STX)

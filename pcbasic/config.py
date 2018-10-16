@@ -16,7 +16,6 @@ import codecs
 import locale
 import tempfile
 import shutil
-import platform
 import pkg_resources
 import string
 from collections import deque
@@ -29,6 +28,7 @@ from .compat import split_quoted
 from . import data
 
 
+# minimum required python2 version
 MIN_PYTHON_VERSION = (2, 7, 12)
 
 # base directory name
@@ -45,6 +45,9 @@ PROGRAM_PATH = os.path.join(STATE_PATH, u'bundled_programs')
 # format for log files
 LOGGING_FORMAT = u'[%(asctime)s.%(msecs)04d] %(levelname)s: %(message)s'
 LOGGING_FORMATTER = logging.Formatter(fmt=LOGGING_FORMAT, datefmt=u'%H:%M:%S')
+
+# drive letters except @, bytes constant
+UPPERCASE = string.uppercase
 
 
 def append_arg(args, key, value):
@@ -91,7 +94,7 @@ class TemporaryDirectory():
             try:
                 shutil.rmtree(self._temp_dir)
             except EnvironmentError as e:
-                logging.error(str(e))
+                logging.error('Could not clean up temporary directory: %s', e)
 
 
 class WhitespaceStripper(object):
@@ -103,7 +106,7 @@ class WhitespaceStripper(object):
 
     def readline(self):
         """Read a line and strip whitespace (but not EOL)."""
-        return self._file.readline().lstrip(' \t')
+        return self._file.readline().lstrip(u' \t')
 
 
 class Settings(object):
@@ -269,7 +272,8 @@ class Settings(object):
         u'mouse-clipboard': {u'type': u'bool', u'default': True,},
         u'state': {u'type': u'string', u'default': u'',},
         u'monitor': {
-            u'type': u'string', u'choices': (u'rgb', u'composite', u'green', u'amber', u'grey', u'mono'),
+            u'type': u'string',
+            u'choices': (u'rgb', u'composite', u'green', u'amber', u'grey', u'mono'),
             u'default': u'rgb',},
         u'aspect': {u'type': u'int', u'list': 2, u'default': [4, 3],},
         u'scaling': {
@@ -283,7 +287,7 @@ class Settings(object):
         u'allow-code-poke': {u'type': u'bool', u'default': False,},
         u'reserved-memory': {u'type': u'int', u'default': 3429,},
         u'caption': {u'type': u'string', u'default': NAME,},
-        u'text-width': {u'type': u'int', u'choices':(40, 80), u'default': 80,},
+        u'text-width': {u'type': u'int', u'choices':(u'40', u'80'), u'default': 80,},
         u'video-memory': {u'type': u'int', u'default': 262144,},
         u'shell': {u'type': u'string', u'default': u'',},
         u'ctrl-c-break': {u'type': u'bool', u'default': True,},
@@ -301,31 +305,39 @@ class Settings(object):
         else:
             self._uargv = list(arguments)
         self._pre_init_logging()
-        self._temp_dir = temp_dir
-        # create state path if needed
-        if not os.path.exists(STATE_PATH):
-            os.makedirs(STATE_PATH)
-        # create user config file if needed
-        if not os.path.exists(self.user_config_path):
-            try:
-                os.makedirs(USER_CONFIG_DIR)
-            except OSError:
-                pass
-            self.build_default_config_file(self.user_config_path)
-        # create @: drive if not present
-        if not os.path.exists(PROGRAM_PATH):
-            os.makedirs(PROGRAM_PATH)
-            # unpack bundled programs
-            store_bundled_programs(PROGRAM_PATH)
-        # store options in options dictionary
-        self._options = self._retrieve_options(self._uargv)
+        try:
+            self._temp_dir = temp_dir
+            # create state path if needed
+            if not os.path.exists(STATE_PATH):
+                os.makedirs(STATE_PATH)
+            # create user config file if needed
+            if not os.path.exists(self.user_config_path):
+                try:
+                    os.makedirs(USER_CONFIG_DIR)
+                except OSError:
+                    pass
+                self.build_default_config_file(self.user_config_path)
+            # create @: drive if not present
+            if not os.path.exists(PROGRAM_PATH):
+                os.makedirs(PROGRAM_PATH)
+                # unpack bundled programs
+                store_bundled_programs(PROGRAM_PATH)
+            # store options in options dictionary
+            self._options = self._retrieve_options(self._uargv)
+        except:
+            # avoid losing exception messages occuring while logging was disabled
+            self._reset_logging()
+            raise
         # prepare global logger for use by main program
         self._prepare_logging()
         # initial validations
-        python_version = tuple(int(v) for v in platform.python_version_tuple())
-        if python_version >= (3, 0, 0) or python_version < MIN_PYTHON_VERSION:
-            msg = ('PC-BASIC requires Python 2, version %d.%d.%d or higher. ' % MIN_PYTHON_VERSION +
-                'You have %d.%d.%d.' % python_version)
+        # sys.version_info tuple's first three elements are guaranteed to be ints
+        python_version = sys.version_info[:3]
+        if python_version >= (3,) or python_version < MIN_PYTHON_VERSION:
+            msg = (
+                'PC-BASIC requires Python 2, version %d.%d.%d or higher. ' % MIN_PYTHON_VERSION +
+                'You have %d.%d.%d.' % python_version
+            )
             logging.fatal(msg)
             raise Exception(msg)
 
@@ -341,16 +353,21 @@ class Settings(object):
         handler.setFormatter(LOGGING_FORMATTER)
         root_logger.addHandler(handler)
 
-    def _prepare_logging(self):
-        """Set up the global logger."""
-        # get log stream and level from options
-        logfile = self.get('logfile')
-        loglevel = logging.DEBUG if self.get('debug') else logging.INFO
+    def _reset_logging(self):
+        """Reset root logger."""
         # o dear o dear what a horrible API
         root_logger = logging.getLogger()
         # remove all old handlers: temporary ones we set as well as any default ones
         for handler in root_logger.handlers:
             root_logger.removeHandler(handler)
+        return root_logger
+
+    def _prepare_logging(self):
+        """Set up the global logger."""
+        # get log stream and level from options
+        logfile = self.get('logfile')
+        loglevel = logging.DEBUG if self.get('debug') else logging.INFO
+        root_logger = self._reset_logging()
         root_logger.setLevel(loglevel)
         if logfile:
             logstream = open(logfile, 'w')
@@ -378,7 +395,8 @@ class Settings(object):
         for key, value in args.iteritems():
             if key not in self.arguments:
                 logging.warning(
-                        'Ignored unrecognised option `%s=%s` in configuration file', key, value)
+                    'Ignored unrecognised option `%s=%s` in configuration file', key, value
+                )
         # parse rest of command line
         self._merge_arguments(args, self._parse_args(remaining))
         # parse GW-BASIC style options
@@ -653,7 +671,7 @@ class Settings(object):
                 # if started from CMD.EXE, get the 'current working dir' for each drive
                 # if not in CMD.EXE, there's only one cwd
                 save_current = os.getcwdu()
-                for letter in string.uppercase:
+                for letter in UPPERCASE:
                     try:
                         os.chdir(letter + b':')
                         cwd = get_short_pathname(os.getcwdu()) or os.getcwdu()
@@ -667,7 +685,9 @@ class Settings(object):
                 os.chdir(save_current)
                 if not current_device:
                     try:
-                        current_device = os.path.abspath(save_current).split(u':')[0].encode('ascii')
+                        current_device = (
+                            os.path.abspath(save_current).split(u':')[0].encode('ascii')
+                        )
                     except UnicodeEncodeError:
                         pass
             else:
@@ -675,8 +695,10 @@ class Settings(object):
                 mount_dict[b'Z'] = (os.getcwdu(), u'')
                 current_device = b'Z'
         # fallbacks for current device
-        if current_device != 'CAS1' and (
-                not current_device or current_device not in mount_dict.keys()):
+        if (
+                current_device != 'CAS1' and
+                (not current_device or current_device not in mount_dict.keys())
+            ):
             if mount_dict:
                 # if not set or not sensible, set current device to lowest available
                 current_device = sorted(mount_dict.keys())[0]
@@ -816,8 +838,7 @@ class Settings(object):
                 for root, dirs, files in os.walk(u'.', topdown=False):
                     for name in dirs + files:
                         try:
-                            os.rename(os.path.join(root, name),
-                                      os.path.join(root, name.upper()))
+                            os.rename(os.path.join(root, name), os.path.join(root, name.upper()))
                         except OSError:
                             # if we can't rename, ignore
                             pass
@@ -852,7 +873,8 @@ class Settings(object):
                 config.readfp(WhitespaceStripper(f))
         except (ConfigParser.Error, IOError):
             logging.warning(
-                u'Error in configuration file %s. Configuration not loaded.', config_file)
+                u'Error in configuration file %s. Configuration not loaded.', config_file
+            )
             return {u'pcbasic': {}}
         presets = {header: dict(config.items(header)) for header in config.sections()}
         return presets
@@ -866,7 +888,8 @@ class Settings(object):
         for d in not_recognised:
             if not_recognised[d]:
                 logging.warning(
-                    u'Ignored unrecognised command-line argument `%s=%s`', d, not_recognised[d])
+                    u'Ignored unrecognised command-line argument `%s=%s`', d, not_recognised[d]
+                )
             else:
                 logging.warning(u'Ignored unrecognised command-line argument `%s`', d)
         return args
@@ -957,8 +980,10 @@ class Settings(object):
                 arg = self._parse_bool(d, arg)
         if u'choices' in self.arguments[d]:
             if first_arg and first_arg not in self.arguments[d][u'choices']:
-                logging.warning(u'Value "%s=%s" ignored; should be one of (%s)',
-                                d, unicode(arg), u', '.join(self.arguments[d][u'choices']))
+                logging.warning(
+                    u'Value "%s=%s" ignored; should be one of (%s)',
+                    d, unicode(arg), u', '.join(self.arguments[d][u'choices'])
+                )
                 arg = u''
         return arg
 
@@ -977,8 +1002,7 @@ class Settings(object):
         if length < 0:
             lst += [None]*(-length-len(lst))
         if length != u'*' and (len(lst) > abs(length) or len(lst) < length):
-            logging.warning(u'Option "%s=%s" ignored, should have %d elements',
-                            d, s, abs(length))
+            logging.warning(u'Option "%s=%s" ignored, should have %d elements', d, s, abs(length))
         return lst
 
     def _parse_bool(self, d, s):
@@ -1009,25 +1033,28 @@ class Settings(object):
     def build_default_config_file(self, file_name):
         """Write a default config file."""
         header = (
-        u"# PC-BASIC configuration file.\n"
-        u"# Edit this file to change your default settings or add presets.\n"
-        u"# Changes to this file will not affect any other users of your computer.\n"
-        u"# All lines starting with # are comments and have no effect.\n"
-        u"# Thus, to use one of the example options below, you need to remove the # at the start of the line.\n"
-        u"\n"
-        u"[pcbasic]\n"
-        u"# Use the [pcbasic] section to specify options you want to be enabled by default.\n"
-        u"# See the documentation or run pcbasic -h for a list of available options.\n"
-        u"# for example (for version '%s'):\n" % VERSION)
+            u"# PC-BASIC configuration file.\n"
+            u"# Edit this file to change your default settings or add presets.\n"
+            u"# Changes to this file will not affect any other users of your computer.\n"
+            u"# All lines starting with # are comments and have no effect.\n"
+            u"# Thus, to use one of the example options below, "
+            u"you need to remove the # at the start of the line.\n"
+            u"\n"
+            u"[pcbasic]\n"
+            u"# Use the [pcbasic] section to specify options you want to be enabled by default.\n"
+            u"# See the documentation or run pcbasic -h for a list of available options.\n"
+            u"# for example (for version '%s'):\n" % VERSION
+        )
         footer = (
-        u"\n\n# To add presets, create a section header between brackets and put the \n"
-        u"# options you need below it, like this:\n"
-        u"# [your_preset]\n"
-        u"# border=0\n"
-        u"# \n"
-        u"# You will then be able to load these options with --preset=your_preset.\n"
-        u"# If you choose the same name as a system preset, PC-BASIC will use your\n"
-        u"# options for that preset and not the system ones. This is not recommended.\n")
+            u"\n\n# To add presets, create a section header between brackets and put the \n"
+            u"# options you need below it, like this:\n"
+            u"# [your_preset]\n"
+            u"# border=0\n"
+            u"# \n"
+            u"# You will then be able to load these options with --preset=your_preset.\n"
+            u"# If you choose the same name as a system preset, PC-BASIC will use your\n"
+            u"# options for that preset and not the system ones. This is not recommended.\n"
+        )
         argnames = sorted(self.arguments.keys())
         try:
             with open(file_name, b'w') as f:
@@ -1037,8 +1064,11 @@ class Settings(object):
                 f.write(header.encode(b'utf-8'))
                 for a in argnames:
                     try:
-                        f.write((u'## choices: %s\n' %
-                                    u', '.join(map(unicode, self.arguments[a][u'choices']))).encode(b'utf-8'))
+                        f.write(
+                            (u'## choices: %s\n' %
+                                    u', '.join(map(unicode, self.arguments[a][u'choices']))
+                            ).encode(b'utf-8')
+                        )
                     except(KeyError, TypeError):
                         pass
                     try:

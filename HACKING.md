@@ -32,9 +32,9 @@ To use the graphical interface, you will also need to install the [SDL2](https:/
 Install the library in your OS's standard location for libraries.
 If this causes difficulties, you can alternatively place the library in the following location:
 
-- Windows (64-bit Python, 64-bit SDL): `pcbasic\lib\win32_x64\sdl2.dll`
-- Windows (32-bit Python, 32-bit SDL): `pcbasic\lib\win32_x86\sdl2.dll`
-- MacOS: `pcbasic/lib/darwin/libSDL2.dylib`
+- Windows (64-bit Python, 64-bit SDL): `pcbasic\lib\win32_x64\sdl2.dll`  
+- Windows (32-bit Python, 32-bit SDL): `pcbasic\lib\win32_x86\sdl2.dll`  
+- MacOS: `pcbasic/lib/darwin/libSDL2.dylib`  
 
 [PyParallel](https://sourceforge.net/projects/pyserial/files/pyparallel/0.2/)
 is only needed to access physical parallel ports, not for printing to a CUPS or Windows printer.

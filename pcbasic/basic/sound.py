@@ -18,6 +18,10 @@ from . import mlparser
 from . import values
 
 
+# bytes constants
+DIGITS = string.digits
+
+
 # NOTE - sound timings and queue lengths are fairly close to DOSBox for Tandy.
 # For regular GW-BASIC there are some differences
 # and the results of the original are difficult to understand
@@ -60,7 +64,7 @@ class Sound(object):
         # frequency for noise sources
         self._noise_freq = list(NOISE_FREQ)
         # advnced sound capabilities
-        self._multivoice = syntax if syntax in ('pcjr', 'tandy') else ''
+        self._multivoice = syntax if syntax in ('pcjr', 'tandy') else b''
         # Tandy/PCjr SOUND ON and BEEP ON
         # tandy has SOUND ON by default, pcjr has it OFF
         self._sound_on = (self._multivoice == 'tandy')
@@ -341,10 +345,10 @@ class Sound(object):
                         note += b'#'
                     elif mmls.skip_blank_read_if((b'-',)):
                         note += b'-'
-                    c = mmls.skip_blank_read_if(string.digits)
+                    c = mmls.skip_blank_read_if(DIGITS)
                     if c is not None:
                         numstr = [c]
-                        while mmls.skip_blank() in set(string.digits):
+                        while mmls.skip_blank() in set(DIGITS):
                             numstr.append(mmls.read(1))
                         # NOT ml_parse_number, only literals allowed here!
                         length = int(b''.join(numstr))

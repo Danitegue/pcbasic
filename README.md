@@ -12,7 +12,7 @@ PC-BASIC is free and open source software released under the GPL version 3.
 
 See also the [PC-BASIC home page](http://robhagemans.github.io/pcbasic/).
 
-![](https://robhagemans.github.io/pcbasic/screenshots/pcbasic.png)
+![](https://robhagemans.github.io/pcbasic/screenshots/pcbasic-2.0.png)
 
 ----------
 
@@ -47,14 +47,14 @@ A few essential commands to help you get around:
 | `SYSTEM`              | exits PC-BASIC immediately, discarding any unsaved program    |
 
 Use one of the key combinations `Ctrl+Break`, `Ctrl+Scroll Lock`, `Ctrl+C` or `F12+B`
-to interrupt a running program.
+to interrupt a running program.  
 
 
 #### Program location ####
-If started through the start-menu shortcut, PC-BASIC looks for programs in the shortcut's start-in folder. By default, this will be your home folder.
+If started through the start-menu shortcut, PC-BASIC looks for programs in the shortcut's start-in folder.
 
-- On **Windows**, this is usually a folder with your user name, located under `C:\Users\`. You can find this folder in Windows Explorer by typing `%USERPROFILE%` in the address bar.
-- On **Mac** and **Linux** this is the directory `~/`.
+- On **Windows**, this is your `Documents` folder by default.
+- On **Mac** and **Linux** this is your home directory `~/` by default.
 
 If started from the command prompt, PC-BASIC looks for programs in the current working directory.
 
@@ -68,7 +68,7 @@ The following pages have GW-BASIC program downloads, lots of information and fur
 - [PeatSoft](http://archive.is/AUm6G) provides GW-BASIC documentation, utilities and some more games.  
 - [Neil C. Obremski's gw-basic.com](http://www.gw-basic.com/) has some fun new games made recently in GW-BASIC.  
 - [Leon Peyre](http://peyre.x10.mx/GWBASIC/) has a nice collection of GW-BASIC programs, including the (in)famous first IBM PC game `DONKEY.BAS`.  
-- [Brooks deForest](https://web.archive.org/web/20170222075609/brooksdeforest.com/tandy1000) provides his amazing Tandy GW-BASIC games, all released into the public domain.
+- [Brooks deForest](https://web.archive.org/web/20170222075609/brooksdeforest.com/tandy1000) provides his amazing Tandy GW-BASIC games, all released into the public domain.  
 - [TVDog's Archive](http://www.oldskool.org/guides/tvdog/) is a great source of information and GW-BASIC programs for the Tandy 1000.  
 - [Phillip Bigelow](http://www.scn.org/~bh162/basic_programs.html) provides scientific programs written in GW-BASIC.  
 - [Gary Peek](http://www.garypeek.com/basic/gwprograms.htm) provides miscellaneous GW-BASIC sources which he released into the public domain.  
